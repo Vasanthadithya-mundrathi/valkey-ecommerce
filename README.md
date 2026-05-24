@@ -14,15 +14,19 @@ This project provides a fully-featured e-commerce frontend that teams can extend
 - Bootstrap 5 + SCSS
 - Phosphor Icons, React Slick, AOS animations
 
-**Backend (to be implemented by teams):**
+**Backend:**
 - [Valkey Bundle](https://github.com/valkey-io/valkey-bundle) (all modules included)
-- BullMQ checkout integration in [`backend/checkout`](./backend/checkout)
+- Node.js + TypeScript + Express API in [`backend/checkout`](./backend/checkout)
+- BullMQ checkout workers backed by Valkey
+- Valkey JSON, Search/Vector Search, Lua, Sorted Sets, HyperLogLog, Streams, and TTL keys
+- Python FastAPI embedding service in [`backend/embeddings`](./backend/embeddings)
+- OpenSearch forwarder for structured logs
 
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) (v16 or higher recommended)
 - npm (comes with Node.js)
-- [Docker](https://www.docker.com/) (for running Valkey)
+- [Docker](https://www.docker.com/) (for running Valkey, OpenSearch, and embeddings)
 
 ## Getting Started
 
@@ -33,13 +37,12 @@ git clone https://github.com/opensource-for-valkey/valkey-ecommerce-demo.git
 cd valkey-ecommerce-demo
 ```
 
-### 2. Start Valkey
+### 2. Start Valkey, OpenSearch, and embeddings
 
-Pull and run the Valkey bundle image which includes all modules:
+Use Compose to start the services required for the full E2E demo:
 
 ```bash
-docker pull valkey/valkey-bundle:9-alpine
-docker run -d --name valkey -p 6379:6379 valkey/valkey-bundle:9-alpine
+docker compose up -d valkey opensearch embeddings
 ```
 
 ### 3. Install frontend dependencies
@@ -57,9 +60,9 @@ npm start
 
 The app will be available at [http://localhost:3000](http://localhost:3000).
 
-### Optional: Run the BullMQ checkout backend
+### 5. Run the integrated Valkey backend
 
-The checkout backend demonstrates one focused Valkey integration: BullMQ queues backed by Valkey for inventory reservation, payment authorization, order confirmation, reservation release, and delivery dispatch.
+The backend serves the product catalog, semantic search, analytics, observability, and checkout APIs.
 
 ```bash
 cd backend/checkout
@@ -68,7 +71,16 @@ npm run seed
 npm run dev
 ```
 
-The API runs at [http://localhost:4000](http://localhost:4000). See [`backend/checkout/README.md`](./backend/checkout/README.md) for endpoints and validation commands.
+The API runs at [http://localhost:4000](http://localhost:4000). Set `REACT_APP_CHECKOUT_API_BASE_URL=http://localhost:4000` when starting the frontend if you use a different API port.
+
+Challenge demo pages:
+
+| Page | Challenge |
+|------|-----------|
+| `/semantic-search` | Challenge 7 vector similarity search |
+| `/analytics` | Challenge 8 Prometheus analytics |
+| `/observability` | Challenge 9 OpenSearch observability |
+| `/cart` and `/checkout` | Challenge 10 inventory checkout |
 
 ## Running Tests
 
@@ -177,10 +189,11 @@ Backend checkout commands:
 
 | Command | Description |
 |---------|-------------|
-| `cd backend/checkout && npm run seed` | Seed Valkey JSON product fixtures |
-| `cd backend/checkout && npm run dev` | Start the checkout API and BullMQ workers |
-| `cd backend/checkout && npm test` | Run checkout unit and integration tests against Valkey |
-| `cd backend/checkout && npm run build` | Type-check and compile the checkout backend |
+| `docker compose up -d valkey opensearch embeddings` | Start the Valkey Bundle, OpenSearch, and embedding service |
+| `cd backend/checkout && npm run seed` | Seed Valkey JSON product fixtures and embeddings |
+| `cd backend/checkout && npm run dev` | Start the API, BullMQ workers, and OpenSearch log forwarder |
+| `cd backend/checkout && npm test` | Run checkout, search, analytics, and observability tests against Valkey |
+| `cd backend/checkout && npm run build` | Type-check and compile the backend |
 
 ## License
 

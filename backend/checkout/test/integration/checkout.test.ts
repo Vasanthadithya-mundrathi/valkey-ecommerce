@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { createValkeyClient } from "../../src/connection";
 import { PRODUCT_FIXTURES } from "../../src/fixtures";
 import { createCheckoutRuntime, type CheckoutRuntime } from "../../src/runtime";
+import { PRODUCT_VECTOR_INDEX } from "../../src/search";
 import { getProduct, scanDelete, seedProducts } from "../../src/store";
 
 const userId = "user:test-checkout";
@@ -14,6 +15,7 @@ let baseUrl: string;
 let client = createValkeyClient();
 
 async function cleanup() {
+  await client.call("FT.DROPINDEX", PRODUCT_VECTOR_INDEX).catch(() => undefined);
   await scanDelete(client, [
     "order:*",
     "user_orders:*",
@@ -53,6 +55,8 @@ describe("BullMQ checkout backed by Valkey", () => {
       ...process.env,
       CHECKOUT_QUEUE_PREFIX: queuePrefix,
       CHECKOUT_WORKER_CONCURRENCY: "2",
+      EMBEDDING_SERVICE_URL: "local://deterministic",
+      OPENSEARCH_URL: "http://127.0.0.1:9",
       RESERVATION_TTL_SECONDS: "30",
     });
     server = await runtime.start(0);
@@ -65,8 +69,7 @@ describe("BullMQ checkout backed by Valkey", () => {
 
   afterAll(async () => {
     await runtime?.close();
-    await cleanup();
-    await client.quit();
+    client.disconnect();
   }, 20000);
 
   test("runs checkout from reservation to confirmation without overselling", async () => {

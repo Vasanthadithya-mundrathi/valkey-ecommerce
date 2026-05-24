@@ -3,6 +3,10 @@ export interface CheckoutConfig {
   workerConcurrency: number;
   reservationTtlSeconds: number;
   queuePrefix: string;
+  corsOrigin: string;
+  embeddingServiceUrl: string;
+  opensearchUrl: string;
+  opensearchIndex: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): CheckoutConfig {
@@ -11,5 +15,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CheckoutConfig
     workerConcurrency: Number(env.CHECKOUT_WORKER_CONCURRENCY ?? 4),
     reservationTtlSeconds: Number(env.RESERVATION_TTL_SECONDS ?? 600),
     queuePrefix: env.CHECKOUT_QUEUE_PREFIX ?? "bull:checkout",
+    corsOrigin: env.CORS_ORIGIN ?? "http://localhost:3000",
+    embeddingServiceUrl: env.EMBEDDING_SERVICE_URL ?? "http://localhost:8001",
+    opensearchUrl: env.OPENSEARCH_URL ?? "http://localhost:9200",
+    opensearchIndex: env.OPENSEARCH_INDEX ?? "valkey-ecommerce-logs",
   };
 }

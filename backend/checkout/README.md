@@ -1,14 +1,13 @@
-# BullMQ Checkout on Valkey
+# Integrated Valkey E-Commerce Backend
 
-This backend implements the checkout and inventory-tracking integration for the Valkey e-commerce demo. It uses BullMQ queues backed by Valkey, Valkey JSON for product and order documents, Lua scripts for atomic inventory mutation, idempotency keys for safe retries, and a Valkey Stream for order lifecycle events.
+This backend implements the challenge 7-10 demo API for the Valkey e-commerce app. It uses BullMQ queues backed by Valkey, Valkey JSON for product and order documents, Valkey Search/Vector Search for semantic product search, Lua scripts for atomic inventory mutation, Valkey-backed metrics for Prometheus, and Valkey Streams as the durable OpenSearch log buffer.
 
 ## Run Locally
 
-Start Valkey Bundle from the repository root:
+Start the required services from the repository root:
 
 ```bash
-docker pull valkey/valkey-bundle:9-alpine
-docker run -d --name valkey -p 6379:6379 valkey/valkey-bundle:9-alpine
+docker compose up -d valkey opensearch embeddings
 ```
 
 Install, seed, and run the backend:
@@ -34,13 +33,28 @@ The service listens on `http://localhost:4000` by default.
 | `VALKEY_TLS` | `false` | Enables TLS options when set to `true`. |
 | `CHECKOUT_PORT` | `4000` | HTTP server port. |
 | `CHECKOUT_WORKER_CONCURRENCY` | `4` | Worker concurrency per queue. |
+| `RESERVATION_TTL_SECONDS` | `600` | Inventory reservation expiry. |
+| `CORS_ORIGIN` | `http://localhost:3000` | Allowed frontend origin. |
+| `EMBEDDING_SERVICE_URL` | `http://localhost:8001` | FastAPI embedding service URL. |
+| `OPENSEARCH_URL` | `http://localhost:9200` | OpenSearch URL for log forwarding. |
+| `OPENSEARCH_INDEX` | `valkey-ecommerce-logs` | OpenSearch index name. |
 
 ## API
 
-All endpoints require `X-User-Id`.
+Catalog, search, metrics, and observability endpoints are public for the demo. Checkout and order endpoints require `X-User-Id`; side-effecting checkout steps also require `Idempotency-Key`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| `GET` | `/api/products` | List active products from Valkey JSON. |
+| `GET` | `/api/products/:id` | Fetch one product. |
+| `GET` | `/api/search/semantic?q=...` | Vector search with optional `categoryId`, `minPrice`, and `maxPrice` filters. |
+| `GET` | `/api/products/:id/similar` | Similar products using stored embeddings. |
+| `GET` | `/metrics` | Prometheus exposition text backed by Valkey metrics. |
+| `GET` | `/api/analytics/dashboard` | JSON dashboard for orders, revenue, latency, active users, and inventory. |
+| `GET` | `/api/observability/logs` | Recent structured logs from the `logs:app` Valkey Stream. |
+| `GET` | `/api/observability/traces/:traceId` | Trace lookup across recent logs. |
+| `GET` | `/api/observability/errors` | Top API errors from the log stream. |
+| `GET` | `/api/observability/health` | Trace/log/OpenSearch health. |
 | `POST` | `/api/checkout/start` | Create an order and reserve inventory through BullMQ. Requires `Idempotency-Key`. |
 | `POST` | `/api/checkout/payment` | Run deterministic stub payment through BullMQ. Requires `Idempotency-Key`. |
 | `POST` | `/api/checkout/confirm` | Commit reserved inventory and dispatch delivery through BullMQ. Requires `Idempotency-Key`. |
@@ -69,4 +83,4 @@ npm run build
 npm test
 ```
 
-The integration tests require a live Valkey Bundle instance on `localhost:6379`.
+The integration tests require a live Valkey Bundle instance on `localhost:6379`. OpenSearch and the embedding service are used for the full browser demo; tests fall back to deterministic local embeddings when the embedding service is unavailable.

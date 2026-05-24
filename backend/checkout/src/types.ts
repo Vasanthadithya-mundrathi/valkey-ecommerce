@@ -44,9 +44,15 @@ export interface Product {
     average: number;
     count: number;
   };
+  embedding?: number[];
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SemanticSearchResult {
+  product: Product;
+  score: number;
 }
 
 export interface OrderItem {

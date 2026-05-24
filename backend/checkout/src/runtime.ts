@@ -5,9 +5,13 @@ import {
   createValkeyConnection,
 } from "./connection";
 import { loadConfig, type CheckoutConfig } from "./config";
+import { createEmbeddingClient } from "./embeddings";
 import { InventoryScripts } from "./inventoryScripts";
+import { startOpenSearchForwarder, type OpenSearchForwarder } from "./observability";
 import { createQueueRuntime, type QueueRuntime } from "./queues";
 import { createCheckoutApp } from "./server";
+import { ensureProductVectorIndex, upsertProductEmbeddings } from "./search";
+import { ensureSeedProducts } from "./store";
 
 export interface CheckoutRuntime {
   app: ReturnType<typeof createCheckoutApp>;
@@ -26,12 +30,20 @@ export async function createCheckoutRuntime(env: NodeJS.ProcessEnv = process.env
   const scripts = new InventoryScripts(client);
   await scripts.load();
 
+  const embeddingClient = createEmbeddingClient(config.embeddingServiceUrl);
+  const products = await ensureSeedProducts(client);
+  await upsertProductEmbeddings(client, products, embeddingClient.embedText);
+  await ensureProductVectorIndex(client);
+
   const queues = await createQueueRuntime(connection, client, scripts, config);
+  const openSearchForwarder: OpenSearchForwarder = startOpenSearchForwarder(client, config);
   const app = createCheckoutApp({
     client,
     scripts,
     queues: queues.queues,
     events: queues.events,
+    config,
+    embedText: embeddingClient.embedText,
   });
 
   let server: Server | null = null;
@@ -52,11 +64,14 @@ export async function createCheckoutRuntime(env: NodeJS.ProcessEnv = process.env
     },
     async close() {
       if (server) {
+        server.closeIdleConnections?.();
+        server.closeAllConnections?.();
         await new Promise<void>((resolve, reject) => {
           server!.close((error) => (error ? reject(error) : resolve()));
         });
         server = null;
       }
+      openSearchForwarder.close();
       await queues.close();
       await client.quit();
     },

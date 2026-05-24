@@ -39,6 +39,31 @@ export async function seedProducts(client: Redis): Promise<Product[]> {
   return PRODUCT_FIXTURES;
 }
 
+export async function ensureSeedProducts(client: Redis): Promise<Product[]> {
+  const existingProducts = await listProducts(client);
+  if (existingProducts.length > 0) {
+    return existingProducts;
+  }
+
+  return seedProducts(client);
+}
+
+export async function listProducts(client: Redis): Promise<Product[]> {
+  const ids: string[] = [];
+  let cursor = "0";
+  do {
+    const [nextCursor, keys] = await client.scan(cursor, "MATCH", "product:*", "COUNT", 100);
+    cursor = nextCursor;
+    ids.push(...keys);
+  } while (cursor !== "0");
+
+  const products = await Promise.all(ids.map((id) => getProduct(client, id)));
+  return products
+    .filter((product): product is Product => Boolean(product))
+    .filter((product) => product.status === "active")
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
 export async function getProduct(client: Redis, id: string): Promise<Product | null> {
   const raw = await client.call("JSON.GET", productKey(id), "$");
   if (!raw || typeof raw !== "string") {
