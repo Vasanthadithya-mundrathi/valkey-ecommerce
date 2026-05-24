@@ -4,7 +4,7 @@ An e-commerce platform starter built with React, designed to showcase [Valkey](h
 
 ## Overview
 
-This project provides a fully-featured e-commerce frontend that teams can extend with Valkey-powered backend services including authentication, search, caching, real-time recommendations, and more.
+This project provides a judge-demo-ready e-commerce frontend and integrated Valkey backend covering Challenges 1-14 from `HACKATHON.md`: authentication, catalog, cart, trending, ads, full-text search, vector search, analytics, observability, checkout, delivery tracking, rate limiting, recommendations, and agentic search.
 
 ## Tech Stack
 
@@ -62,7 +62,7 @@ The app will be available at [http://localhost:3000](http://localhost:3000).
 
 ### 5. Run the integrated Valkey backend
 
-The backend serves the authentication, product catalog, persistent cart, semantic search, analytics, observability, and checkout APIs.
+The backend serves the authentication, product catalog, persistent cart, search, analytics, observability, checkout, delivery, rate limiting, recommendations, and agentic search APIs.
 
 ```bash
 cd backend/checkout
@@ -80,10 +80,15 @@ Challenge demo pages:
 | `/account` | Challenge 1 Valkey-backed authentication and sessions |
 | `/catalog` | Challenge 2 Valkey JSON catalog with filters and pagination |
 | `/cart` | Challenge 3 persistent cart and coupons |
+| `/growth` | Challenges 4-6 trending products, targeted ads, and full-text search |
 | `/semantic-search` | Challenge 7 vector similarity search |
 | `/analytics` | Challenge 8 Prometheus analytics |
 | `/observability` | Challenge 9 OpenSearch observability |
 | `/cart` and `/checkout` | Challenge 10 inventory checkout |
+| `/delivery` | Challenge 11 delivery tracking with geolocation |
+| `/ratelimit` | Challenge 12 Valkey sliding-window API rate limiting |
+| `/recommendations` | Challenge 13 real-time recommendations |
+| `/agentic-search` | Challenge 14 Valkey-backed agentic search memory |
 
 ## Running Tests
 
@@ -193,9 +198,9 @@ Backend checkout commands:
 | Command | Description |
 |---------|-------------|
 | `docker compose up -d valkey opensearch embeddings` | Start the Valkey Bundle, OpenSearch, and embedding service |
-| `cd backend/checkout && npm run seed` | Seed Valkey JSON product fixtures and embeddings |
+| `cd backend/checkout && npm run seed` | Seed Valkey JSON products, ads, delivery fixtures, search indexes, and embeddings |
 | `cd backend/checkout && npm run dev` | Start the API, BullMQ workers, and OpenSearch log forwarder |
-| `cd backend/checkout && npm test` | Run checkout, search, analytics, and observability tests against Valkey |
+| `cd backend/checkout && npm test` | Run checkout, search, analytics, observability, delivery, rate limit, recommendation, and agent tests against Valkey |
 | `cd backend/checkout && npm run build` | Type-check and compile the backend |
 
 ## License

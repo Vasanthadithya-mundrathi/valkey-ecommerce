@@ -31,7 +31,27 @@ import {
   productsForVendor,
 } from "./catalog";
 import type { CheckoutConfig } from "./config";
+import {
+  checkServiceability,
+  deliveryChannel,
+  estimateDelivery,
+  getTracking,
+  parseGeoPair,
+  updateDeliveryLocation,
+  validateGeoPoint,
+} from "./delivery";
 import type { EmbedText } from "./embeddings";
+import {
+  adStats,
+  fullTextSearch,
+  recordAdClick,
+  recordAdImpression,
+  recordTrendingEvent,
+  saveAd,
+  searchSuggestions,
+  selectAds,
+  trendingProducts,
+} from "./engagement";
 import { ApiError, errorBody, toApiError } from "./errors";
 import { withIdempotency } from "./idempotency";
 import type { InventoryScripts } from "./inventoryScripts";
@@ -57,6 +77,16 @@ import {
   releaseReservations,
   reserveJobOptions,
 } from "./queues";
+import { RATE_LIMIT_CONFIG, rateLimitMiddleware } from "./rateLimit";
+import {
+  personalizedRecommendations,
+  recentlyViewed,
+  recommendationPrincipal,
+  recordRecommendationEvent,
+  similarRecommendations,
+  trendingForUser,
+} from "./recommendations";
+import { agentSearch, getExistingConversation, recordAgentFeedback } from "./agent";
 import {
   ORDER_STREAM_KEY,
   createOrder,
@@ -67,7 +97,7 @@ import {
   transitionOrder,
 } from "./store";
 import { parseNumericFilter, semanticSearchProducts, similarProducts } from "./search";
-import type { ApiEnvelope, CartItemInput, Order, Product, PublicUser } from "./types";
+import type { AdCreative, ApiEnvelope, CartItemInput, DeliveryStatus, Order, Product, PublicUser } from "./types";
 
 export interface CheckoutAppContext {
   client: Redis;
@@ -89,6 +119,10 @@ function idempotencyKeyFrom(request: Request): string {
     throw new ApiError(400, "missing_idempotency_key", "Idempotency-Key header is required.");
   }
   return key;
+}
+
+function demoUserId(request: Request): string | undefined {
+  return request.header("X-User-Id") ?? request.header("X-Guest-Session-Id") ?? undefined;
 }
 
 function optionalString(value: unknown): string | undefined {
@@ -169,6 +203,9 @@ export function createCheckoutApp(context: CheckoutAppContext) {
   app.use(corsMiddleware(context.config.corsOrigin));
   app.use(express.json());
   app.use(metricsMiddleware(context.client));
+  if (context.config.rateLimitEnabled) {
+    app.use(rateLimitMiddleware(context.client));
+  }
 
   app.post("/api/auth/register", async (request, response, next) => {
     try {
@@ -316,7 +353,9 @@ export function createCheckoutApp(context: CheckoutAppContext) {
         throw new ApiError(400, "invalid_request", "productId is required.");
       }
       const principal = await resolveCartPrincipal(context.client, context.config, request);
-      response.status(201).json({ cart: await addCartItem(context.client, principal, productId, quantity) });
+      const cart = await addCartItem(context.client, principal, productId, quantity);
+      await recordRecommendationEvent(context.client, principal.id, { type: "add_to_cart", productId });
+      response.status(201).json({ cart });
     } catch (error) {
       next(error);
     }
@@ -414,6 +453,329 @@ export function createCheckoutApp(context: CheckoutAppContext) {
     response.status(501).json(
       errorBody("not_implemented", "Image embeddings are outside this demo scope; use semantic text search.")
     );
+  });
+
+  app.get("/api/search", async (request, response, next) => {
+    try {
+      response.json(
+        await fullTextSearch(context.client, {
+          q: optionalString(request.query.q),
+          categoryId: optionalString(request.query.category ?? request.query.categoryId),
+          brand: optionalString(request.query.brand),
+          minPrice: parseNumericFilter(request.query.minPrice),
+          maxPrice: parseNumericFilter(request.query.maxPrice),
+          sort: optionalString(request.query.sort),
+          page: parseNumericFilter(request.query.page),
+          pageSize: parseNumericFilter(request.query.pageSize),
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/search/suggest", async (request, response, next) => {
+    try {
+      response.json({
+        suggestions: await searchSuggestions(
+          context.client,
+          optionalString(request.query.q) ?? "",
+          parseNumericFilter(request.query.max) ?? 5
+        ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/search/facets", async (request, response, next) => {
+    try {
+      const result = await fullTextSearch(context.client, {
+        q: optionalString(request.query.q),
+        categoryId: optionalString(request.query.category ?? request.query.categoryId),
+        brand: optionalString(request.query.brand),
+        minPrice: parseNumericFilter(request.query.minPrice),
+        maxPrice: parseNumericFilter(request.query.maxPrice),
+        pageSize: 1,
+      });
+      response.json({ facets: result.facets, total: result.total });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/trending", async (request, response, next) => {
+    try {
+      response.json(
+        await trendingProducts(context.client, {
+          window: optionalString(request.query.window),
+          limit: parseNumericFilter(request.query.limit),
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/trending/:categoryId", async (request, response, next) => {
+    try {
+      response.json(
+        await trendingProducts(context.client, {
+          categoryId: request.params.categoryId,
+          window: optionalString(request.query.window),
+          limit: parseNumericFilter(request.query.limit),
+        })
+      );
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/events/view", async (request, response, next) => {
+    try {
+      const body = request.body as Record<string, unknown>;
+      const productId = optionalString(body.productId);
+      if (!productId) throw new ApiError(400, "invalid_request", "productId is required.");
+      await recordTrendingEvent(context.client, { productId, action: "view", categoryId: optionalString(body.categoryId) });
+      response.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/events/add-to-cart", async (request, response, next) => {
+    try {
+      const body = request.body as Record<string, unknown>;
+      const productId = optionalString(body.productId);
+      if (!productId) throw new ApiError(400, "invalid_request", "productId is required.");
+      await recordTrendingEvent(context.client, { productId, action: "add_to_cart", categoryId: optionalString(body.categoryId) });
+      response.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/events/purchase", async (request, response, next) => {
+    try {
+      const body = request.body as Record<string, unknown>;
+      const productId = optionalString(body.productId);
+      if (!productId) throw new ApiError(400, "invalid_request", "productId is required.");
+      await recordTrendingEvent(context.client, { productId, action: "purchase", categoryId: optionalString(body.categoryId) });
+      response.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/ads", async (request, response, next) => {
+    try {
+      const keywords = optionalString(request.query.keywords)?.split(",").map((keyword) => keyword.trim()).filter(Boolean);
+      response.json({
+        ads: await selectAds(context.client, {
+          categoryId: optionalString(request.query.categoryId ?? (request.query.context === "category" ? request.query.value : undefined)),
+          keywords,
+          userId: optionalString(request.query.userId) ?? demoUserId(request),
+          limit: parseNumericFilter(request.query.limit),
+        }),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/ads", async (request, response, next) => {
+    try {
+      response.status(201).json({ ad: await saveAd(context.client, request.body as AdCreative) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/ads/:adId/stats", async (request, response, next) => {
+    try {
+      response.json(await adStats(context.client, request.params.adId, optionalString(request.query.date)));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/ads/:adId/impression", async (request, response, next) => {
+    try {
+      await recordAdImpression(context.client, request.params.adId, optionalString((request.body as Record<string, unknown>).userId) ?? demoUserId(request));
+      response.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/ads/:adId/click", async (request, response, next) => {
+    try {
+      await recordAdClick(context.client, request.params.adId, optionalString((request.body as Record<string, unknown>).userId) ?? demoUserId(request));
+      response.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/delivery/check-serviceability", async (request, response, next) => {
+    try {
+      const point = validateGeoPoint(request.query.lat, request.query.lng);
+      if (!point) throw new ApiError(400, "invalid_coordinates", "lat and lng are required and must be valid.");
+      response.json(await checkServiceability(context.client, point));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/delivery/eta", async (request, response, next) => {
+    try {
+      const from = parseGeoPair(request.query.from);
+      const to = parseGeoPair(request.query.to);
+      if (!from || !to) throw new ApiError(400, "invalid_coordinates", "from and to are required as lat,lng pairs.");
+      response.json(estimateDelivery(from, to));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/delivery/:trackingId/track", async (request, response, next) => {
+    try {
+      const tracking = await getTracking(context.client, request.params.trackingId);
+      if (!tracking) throw new ApiError(404, "tracking_not_found", `No delivery found for ${request.params.trackingId}.`);
+      response.setHeader("Content-Type", "text/event-stream");
+      response.setHeader("Cache-Control", "no-cache");
+      response.setHeader("Connection", "keep-alive");
+      response.flushHeaders?.();
+      response.write(`event: snapshot\ndata: ${JSON.stringify(tracking)}\n\n`);
+
+      const subscriber = context.client.duplicate();
+      const channel = deliveryChannel(request.params.trackingId);
+      await subscriber.subscribe(channel);
+      subscriber.on("message", (incoming, message) => {
+        if (incoming === channel) response.write(`event: location\ndata: ${message}\n\n`);
+      });
+      const heartbeat = setInterval(() => response.write(": ping\n\n"), 25000);
+      request.on("close", () => {
+        clearInterval(heartbeat);
+        subscriber.unsubscribe(channel).finally(() => subscriber.quit());
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/delivery/:trackingId/location", async (request, response, next) => {
+    try {
+      const body = request.body as Record<string, unknown>;
+      const point = validateGeoPoint(body.lat, body.lng);
+      if (!point) throw new ApiError(400, "invalid_coordinates", "lat and lng are required and must be valid.");
+      response.json({
+        ok: true,
+        ...(await updateDeliveryLocation(context.client, request.params.trackingId, {
+          point,
+          status: optionalString(body.status) as DeliveryStatus | undefined,
+          agentId: optionalString(body.agentId),
+        })),
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/delivery/:trackingId", async (request, response, next) => {
+    try {
+      const tracking = await getTracking(context.client, request.params.trackingId);
+      if (!tracking) throw new ApiError(404, "tracking_not_found", `No delivery found for ${request.params.trackingId}.`);
+      response.json({ tracking });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/ratelimit/config", (_request, response) => {
+    response.json({ config: RATE_LIMIT_CONFIG });
+  });
+
+  app.get("/api/ratelimit/test", (_request, response) => {
+    response.json({ ok: true, message: "within rate limit" });
+  });
+
+  app.post("/api/recommendations/events", async (request, response, next) => {
+    try {
+      const userId = await recommendationPrincipal(context.client, context.config, request);
+      const body = request.body as Record<string, unknown>;
+      await recordRecommendationEvent(context.client, userId, {
+        type: String(body.type) as "view" | "add_to_cart" | "purchase",
+        productId: optionalString(body.productId),
+        productIds: Array.isArray(body.productIds) ? body.productIds.filter((id): id is string => typeof id === "string") : undefined,
+        categoryId: optionalString(body.categoryId),
+      });
+      response.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/recommendations/recently-viewed", async (request, response, next) => {
+    try {
+      const userId = await recommendationPrincipal(context.client, context.config, request);
+      response.json({ results: await recentlyViewed(context.client, userId) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/recommendations/similar/:productId", async (request, response, next) => {
+    try {
+      response.json({ productId: request.params.productId, results: await similarRecommendations(context.client, request.params.productId) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/recommendations/trending-for-you", async (request, response, next) => {
+    try {
+      const userId = await recommendationPrincipal(context.client, context.config, request);
+      response.json({ results: await trendingForUser(context.client, userId) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/recommendations/personalized", async (request, response, next) => {
+    try {
+      const userId = await recommendationPrincipal(context.client, context.config, request);
+      response.json({ user: userId, results: await personalizedRecommendations(context.client, userId) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/agent/search", async (request, response, next) => {
+    try {
+      response.json(await agentSearch(context.client, request.body as { sessionId?: string; message?: unknown }));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/agent/conversation/:sessionId", async (request, response, next) => {
+    try {
+      const conversation = await getExistingConversation(context.client, request.params.sessionId);
+      if (!conversation) throw new ApiError(404, "conversation_not_found", "No such conversation.");
+      response.json(conversation);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/agent/feedback", async (request, response, next) => {
+    try {
+      await recordAgentFeedback(context.client, request.body as Record<string, unknown>);
+      response.json({ ok: true });
+    } catch (error) {
+      next(error);
+    }
   });
 
   app.get("/metrics", async (_request, response, next) => {
@@ -644,6 +1006,10 @@ export function createCheckoutApp(context: CheckoutAppContext) {
           job.waitUntilFinished(context.events.orderConfirm, 5000),
           context.client
         );
+        await recordRecommendationEvent(context.client, userId, {
+          type: "purchase",
+          productIds: updatedOrder.items.map((item) => item.productId),
+        });
         await recordOrderMetric(context.client, updatedOrder.total);
         await recordLog(context.client, {
           level: "info",
@@ -795,7 +1161,7 @@ function corsMiddleware(corsOrigin: string) {
       "Access-Control-Allow-Headers",
       "Authorization,Content-Type,X-User-Id,X-Session-Token,X-Guest-Session-Id,Idempotency-Key,X-Trace-Id"
     );
-    response.setHeader("Access-Control-Expose-Headers", "X-Trace-Id");
+    response.setHeader("Access-Control-Expose-Headers", "X-Trace-Id,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset,Retry-After");
 
     if (request.method === "OPTIONS") {
       response.status(204).end();

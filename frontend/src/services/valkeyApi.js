@@ -102,6 +102,82 @@ export async function getCategoryProducts(categoryId, filters = {}) {
   return request(`/api/categories/${encodeURIComponent(categoryId)}/products${params ? `?${params}` : ""}`);
 }
 
+export async function fullTextSearch(filters = {}) {
+  const params = toSearchParams(filters);
+  return request(`/api/search${params ? `?${params}` : ""}`);
+}
+
+export async function searchSuggestions(query) {
+  return request(`/api/search/suggest?q=${encodeURIComponent(query)}`);
+}
+
+export async function getTrending(filters = {}) {
+  const params = toSearchParams(filters);
+  return request(`/api/trending${params ? `?${params}` : ""}`);
+}
+
+export async function recordProductEvent(type, productId, categoryId) {
+  const path = type === "purchase" ? "/api/events/purchase" : type === "add_to_cart" ? "/api/events/add-to-cart" : "/api/events/view";
+  return request(path, { method: "POST", body: { productId, categoryId } });
+}
+
+export async function getAds(filters = {}) {
+  const params = toSearchParams(filters);
+  return request(`/api/ads${params ? `?${params}` : ""}`, { cart: true });
+}
+
+export async function recordAdImpression(adId) {
+  return request(`/api/ads/${encodeURIComponent(adId)}/impression`, { method: "POST", cart: true, body: {} });
+}
+
+export async function recordAdClick(adId) {
+  return request(`/api/ads/${encodeURIComponent(adId)}/click`, { method: "POST", cart: true, body: {} });
+}
+
+export async function checkDeliveryServiceability(lat, lng) {
+  return request(`/api/delivery/check-serviceability?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+}
+
+export async function getDeliveryEta(from, to) {
+  return request(`/api/delivery/eta?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+}
+
+export async function getDeliveryTracking(trackingId) {
+  return request(`/api/delivery/${encodeURIComponent(trackingId)}`);
+}
+
+export async function updateDeliveryLocation(trackingId, input) {
+  return request(`/api/delivery/${encodeURIComponent(trackingId)}/location`, { method: "POST", body: input });
+}
+
+export async function getRateLimitConfig() {
+  return request("/api/ratelimit/config");
+}
+
+export async function hitRateLimitDemo() {
+  return request("/api/ratelimit/test");
+}
+
+export async function recordRecommendationEvent(input) {
+  return request("/api/recommendations/events", { method: "POST", cart: true, body: input });
+}
+
+export async function getPersonalizedRecommendations() {
+  return request("/api/recommendations/personalized", { cart: true });
+}
+
+export async function getRecentlyViewed() {
+  return request("/api/recommendations/recently-viewed", { cart: true });
+}
+
+export async function getTrendingForYou() {
+  return request("/api/recommendations/trending-for-you", { cart: true });
+}
+
+export async function agentSearch(input) {
+  return request("/api/agent/search", { method: "POST", body: input });
+}
+
 export async function semanticSearch({ query, categoryId, minPrice, maxPrice, limit = 8 }) {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   if (categoryId) params.set("categoryId", categoryId);

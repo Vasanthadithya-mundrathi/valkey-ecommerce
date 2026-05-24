@@ -12,6 +12,11 @@ import AnalyticsPage from "./pages/AnalyticsPage";
 import ObservabilityPage from "./pages/ObservabilityPage";
 import SemanticSearchPage from "./pages/SemanticSearchPage";
 import CatalogPage from "./pages/CatalogPage";
+import GrowthPage from "./pages/GrowthPage";
+import DeliveryPage from "./pages/DeliveryPage";
+import RateLimitPage from "./pages/RateLimitPage";
+import RecommendationsPage from "./pages/RecommendationsPage";
+import AgenticSearchPage from "./pages/AgenticSearchPage";
 import AccountPage from "./pages/AccountPage";
 import BlogPage from "./pages/BlogPage";
 import BlogDetailsPage from "./pages/BlogDetailsPage";
@@ -37,9 +42,14 @@ function App() {
           <Route exact path='/index-three' element={<HomePageThree />} />
           <Route exact path='/shop' element={<ShopPage />} />
           <Route exact path='/catalog' element={<CatalogPage />} />
+          <Route exact path='/growth' element={<GrowthPage />} />
           <Route exact path='/semantic-search' element={<SemanticSearchPage />} />
           <Route exact path='/analytics' element={<AnalyticsPage />} />
           <Route exact path='/observability' element={<ObservabilityPage />} />
+          <Route exact path='/delivery' element={<DeliveryPage />} />
+          <Route exact path='/ratelimit' element={<RateLimitPage />} />
+          <Route exact path='/recommendations' element={<RecommendationsPage />} />
+          <Route exact path='/agentic-search' element={<AgenticSearchPage />} />
           <Route
             exact
             path='/product-details'

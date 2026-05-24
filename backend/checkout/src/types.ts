@@ -120,6 +120,19 @@ export interface Product {
   updatedAt: string;
 }
 
+export interface AdCreative {
+  id: string;
+  vendorId: string;
+  title: string;
+  imageUrl: string;
+  targetUrl: string;
+  targetCategories: string[];
+  targetKeywords: string[];
+  bidAmount: number;
+  dailyBudget: number;
+  status: "active" | "paused";
+}
+
 export interface SemanticSearchResult {
   product: Product;
   score: number;
@@ -190,6 +203,36 @@ export interface CartSummary {
   coupon: Coupon | null;
   couponError?: string;
   totals: CartTotals;
+}
+
+export type DeliveryStatus =
+  | "created"
+  | "assigned"
+  | "picked_up"
+  | "in_transit"
+  | "delivered"
+  | "failed";
+
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
+export interface DeliveryHistoryEntry extends GeoPoint {
+  status: DeliveryStatus;
+  timestamp: string;
+}
+
+export interface DeliveryTracking {
+  trackingId: string;
+  orderId: string;
+  agentId: string;
+  status: DeliveryStatus;
+  pickupLocation: GeoPoint;
+  dropLocation: GeoPoint;
+  currentLocation: GeoPoint;
+  estimatedArrival: string;
+  history: DeliveryHistoryEntry[];
 }
 
 export interface ApiEnvelope {

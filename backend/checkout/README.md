@@ -1,6 +1,6 @@
 # Integrated Valkey E-Commerce Backend
 
-This backend implements the challenge 1-3 and 7-10 demo API for the Valkey e-commerce app. It uses Valkey JSON for users, products, categories, vendors, coupons, and orders; expiring Valkey keys and sorted sets for sessions; Valkey hashes for carts; BullMQ queues backed by Valkey; Valkey Search/Vector Search for semantic product search; Lua scripts for atomic inventory mutation; Valkey-backed metrics for Prometheus; and Valkey Streams as the durable OpenSearch log buffer.
+This backend implements the unified Challenges 1-14 demo API for the Valkey e-commerce app. It uses Valkey JSON for users, products, categories, vendors, coupons, ads, delivery tracking, conversations, and orders; expiring Valkey keys and sorted sets for sessions; Valkey hashes for carts; BullMQ queues backed by Valkey; Valkey Search/Vector Search for product search; Lua scripts for atomic inventory mutation; Valkey geospatial indexes for delivery; Valkey sorted sets for trending, ads, recommendations, and rate limits; Valkey-backed metrics for Prometheus; and Valkey Streams as the durable OpenSearch log buffer.
 
 ## Run Locally
 
@@ -40,6 +40,7 @@ The service listens on `http://localhost:4000` by default.
 | `OPENSEARCH_INDEX` | `valkey-ecommerce-logs` | OpenSearch index name. |
 | `AUTH_SESSION_TTL_SECONDS` | `86400` | Valkey session key TTL. |
 | `AUTH_BCRYPT_ROUNDS` | `12` | bcrypt password hashing rounds. |
+| `RATE_LIMIT_ENABLED` | `true` | Enables the Valkey sliding-window API rate limiter. |
 
 ## API
 
@@ -64,6 +65,19 @@ Catalog, search, cart, metrics, and observability endpoints are public for the d
 | `DELETE` | `/api/cart/items/:productId` | Remove a cart item. |
 | `POST` | `/api/cart/coupon` | Apply a Valkey JSON coupon and calculate discount. |
 | `DELETE` | `/api/cart/coupon` | Remove the applied coupon. |
+| `GET` | `/api/trending` | Challenge 4 global trending products by `1h`, `6h`, or `24h` window. |
+| `GET` | `/api/trending/:categoryId` | Challenge 4 category trending products. |
+| `POST` | `/api/events/view` | Record a weighted product view event. |
+| `POST` | `/api/events/add-to-cart` | Record a weighted add-to-cart event. |
+| `POST` | `/api/events/purchase` | Record a weighted purchase event. |
+| `GET` | `/api/ads` | Challenge 5 select targeted ads by category or keyword context. |
+| `POST` | `/api/ads` | Create or update a demo ad creative. |
+| `POST` | `/api/ads/:adId/impression` | Record an ad impression with frequency and budget accounting. |
+| `POST` | `/api/ads/:adId/click` | Record an ad click. |
+| `GET` | `/api/ads/:adId/stats` | Fetch ad impressions, clicks, CTR, and spend. |
+| `GET` | `/api/search?q=...` | Challenge 6 full-text product search with filters, sorting, pagination, and facets. |
+| `GET` | `/api/search/suggest?q=...` | Product autocomplete suggestions. |
+| `GET` | `/api/search/facets` | Full-text search facet counts. |
 | `GET` | `/api/search/semantic?q=...` | Vector search with optional `categoryId`, `minPrice`, and `maxPrice` filters. |
 | `GET` | `/api/products/:id/similar` | Similar products using stored embeddings. |
 | `GET` | `/metrics` | Prometheus exposition text backed by Valkey metrics. |
@@ -79,6 +93,20 @@ Catalog, search, cart, metrics, and observability endpoints are public for the d
 | `GET` | `/api/orders` | List orders owned by the caller. |
 | `GET` | `/api/orders/:id` | Fetch one owned order. |
 | `GET` | `/api/orders/:id/events` | Server-Sent Events stream for order state changes. |
+| `GET` | `/api/delivery/check-serviceability` | Challenge 11 geospatial serviceability check. |
+| `GET` | `/api/delivery/eta` | Estimate delivery distance and arrival time from two geo points. |
+| `GET` | `/api/delivery/:trackingId/track` | Fetch delivery tracking status and ETA. |
+| `POST` | `/api/delivery/:trackingId/location` | Update courier location, history, geo index, and pub/sub channel. |
+| `GET` | `/api/ratelimit/config` | Challenge 12 rate-limit configuration. |
+| `GET` | `/api/ratelimit/test` | Demo endpoint limited by Valkey sliding-window counters. |
+| `POST` | `/api/recommendations/events` | Challenge 13 record view, add-to-cart, and purchase events. |
+| `GET` | `/api/recommendations/recently-viewed` | Fetch recent products from Valkey list history. |
+| `GET` | `/api/recommendations/similar/:productId` | Fetch co-purchase recommendations. |
+| `GET` | `/api/recommendations/trending-for-you` | Fetch category-aware trending recommendations. |
+| `GET` | `/api/recommendations/personalized` | Fetch personalized real-time recommendations. |
+| `POST` | `/api/agent/search` | Challenge 14 agentic product search with Valkey conversation memory. |
+| `GET` | `/api/agent/conversation/:sessionId` | Fetch the stored agent conversation. |
+| `POST` | `/api/agent/feedback` | Record thumbs-up/down feedback for a product result. |
 
 Example checkout:
 

@@ -9,9 +9,14 @@ jest.mock('./pages/HomePageTwo', () => () => null);
 jest.mock('./pages/HomePageThree', () => () => null);
 jest.mock('./pages/ShopPage', () => () => null);
 jest.mock('./pages/CatalogPage', () => () => <main>Catalog challenge route</main>);
+jest.mock('./pages/GrowthPage', () => () => <main>Growth challenge route</main>);
 jest.mock('./pages/SemanticSearchPage', () => () => <main>Semantic search challenge route</main>);
 jest.mock('./pages/AnalyticsPage', () => () => <main>Analytics challenge route</main>);
 jest.mock('./pages/ObservabilityPage', () => () => <main>Observability challenge route</main>);
+jest.mock('./pages/DeliveryPage', () => () => <main>Delivery challenge route</main>);
+jest.mock('./pages/RateLimitPage', () => () => <main>Rate limit challenge route</main>);
+jest.mock('./pages/RecommendationsPage', () => () => <main>Recommendations challenge route</main>);
+jest.mock('./pages/AgenticSearchPage', () => () => <main>Agentic search challenge route</main>);
 jest.mock('./pages/ProductDetailsPageOne', () => () => null);
 jest.mock('./pages/ProductDetailsPageTwo', () => () => null);
 jest.mock('./pages/CartPage', () => () => null);
@@ -43,6 +48,23 @@ test('routes to catalog challenge page', () => {
   window.history.pushState({}, '', '/catalog');
   render(<App />);
   expect(screen.getByText(/Catalog challenge route/i)).toBeInTheDocument();
+});
+
+test('routes to all remaining challenge pages', () => {
+  const routes = [
+    ['/growth', /Growth challenge route/i],
+    ['/delivery', /Delivery challenge route/i],
+    ['/ratelimit', /Rate limit challenge route/i],
+    ['/recommendations', /Recommendations challenge route/i],
+    ['/agentic-search', /Agentic search challenge route/i],
+  ];
+
+  routes.forEach(([path, matcher]) => {
+    window.history.pushState({}, '', path);
+    const { unmount } = render(<App />);
+    expect(screen.getByText(matcher)).toBeInTheDocument();
+    unmount();
+  });
 });
 
 test('routes to analytics challenge page', () => {

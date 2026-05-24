@@ -144,7 +144,9 @@ const CatalogPage = () => {
             {products.map((product) => (
               <div className="col-xl-3 col-md-6" key={product.id}>
                 <div className="border border-gray-100 rounded-8 p-20 h-100">
-                  <img className="w-100 rounded-8 mb-16" src={product.images?.[0]?.url || "/assets/images/thumbs/product-img1.png"} alt={product.name} />
+                  <div className="valkey-product-media mb-16">
+                    <img src={product.images?.[0]?.url || "/assets/images/products/keyboard.svg"} alt={product.name} />
+                  </div>
                   <span className="text-xs text-main-600 fw-semibold">{product.brand}</span>
                   <h6 className="text-lg mt-8 mb-8">{product.name}</h6>
                   <p className="text-sm text-gray-600 text-line-2">{product.shortDescription}</p>

@@ -4,3 +4,30 @@
 @import "slick-carousel/slick/slick-theme.css";
 @import 'select2/dist/css/select2.min.css';
 @import "/public/assets/sass/main.scss";
+
+.valkey-product-media {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  background: #f7faf8;
+  border: 1px solid #eef2ef;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.valkey-product-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.valkey-demo-panel {
+  border: 1px solid #edf1ee;
+  border-radius: 8px;
+  padding: 24px;
+  height: 100%;
+  background: #fff;
+}

@@ -9,6 +9,7 @@ export interface CheckoutConfig {
   opensearchIndex: string;
   sessionTtlSeconds: number;
   bcryptRounds: number;
+  rateLimitEnabled: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): CheckoutConfig {
@@ -23,5 +24,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CheckoutConfig
     opensearchIndex: env.OPENSEARCH_INDEX ?? "valkey-ecommerce-logs",
     sessionTtlSeconds: Number(env.AUTH_SESSION_TTL_SECONDS ?? 86400),
     bcryptRounds: Number(env.AUTH_BCRYPT_ROUNDS ?? 12),
+    rateLimitEnabled: String(env.RATE_LIMIT_ENABLED ?? "true").toLowerCase() !== "false",
   };
 }

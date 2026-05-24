@@ -1,4 +1,4 @@
-import type { Category, Coupon, Product, Vendor } from "./types";
+import type { AdCreative, Category, Coupon, DeliveryTracking, Product, Vendor } from "./types";
 
 const now = "2026-05-24T00:00:00.000Z";
 
@@ -15,6 +15,19 @@ export const VENDOR_IDS = {
   teamDod: "vendor:0192d4e7-4d5e-7b7c-9e9f-1a2b3c4d5e6f",
   valkeyGear: "vendor:0192d4e7-5e6f-7c8d-9a0b-2c3d4e5f6a7b",
 } as const;
+
+const PRODUCT_IMAGES = [
+  "/assets/images/products/keyboard.svg",
+  "/assets/images/products/mouse.svg",
+  "/assets/images/products/usb-c-hub.svg",
+  "/assets/images/products/headphones.svg",
+  "/assets/images/products/desk-lamp.svg",
+  "/assets/images/products/smart-bottle.svg",
+  "/assets/images/products/laptop-stand.svg",
+  "/assets/images/products/travel-charger.svg",
+  "/assets/images/products/notebook-set.svg",
+  "/assets/images/products/backpack.svg",
+];
 
 function product(
   index: number,
@@ -45,7 +58,7 @@ function product(
     },
     images: [
       {
-        url: "/assets/images/thumbs/product-img1.png",
+        url: PRODUCT_IMAGES[index - 1] ?? "/assets/images/products/keyboard.svg",
         alt: name,
         isPrimary: true,
       },
@@ -206,5 +219,67 @@ export const COUPON_FIXTURES: Coupon[] = [
     usedCount: 0,
     applicableCategories: [CATEGORY_IDS.travel],
     active: true,
+  },
+];
+
+export const AD_FIXTURES: AdCreative[] = [
+  {
+    id: "ad:0192d4e9-6f7a-7d8e-9b0c-3d4e5f6a7b8c",
+    vendorId: VENDOR_IDS.teamDod,
+    title: "Team DoD workspace bundle",
+    imageUrl: "/assets/images/products/desk-lamp.svg",
+    targetUrl: "/catalog",
+    targetCategories: [CATEGORY_IDS.workspace, CATEGORY_IDS.input, CATEGORY_IDS.desk],
+    targetKeywords: ["desk", "keyboard", "mouse", "workspace"],
+    bidAmount: 850,
+    dailyBudget: 50000,
+    status: "active",
+  },
+  {
+    id: "ad:0192d4e9-7a8b-7e9f-9c0d-4e5f6a7b8c9d",
+    vendorId: VENDOR_IDS.valkeyGear,
+    title: "Valkey travel kit",
+    imageUrl: "/assets/images/products/backpack.svg",
+    targetUrl: "/catalog",
+    targetCategories: [CATEGORY_IDS.travel],
+    targetKeywords: ["travel", "charger", "bottle", "backpack"],
+    bidAmount: 650,
+    dailyBudget: 30000,
+    status: "active",
+  },
+  {
+    id: "ad:0192d4e9-8b9c-7f0a-9d1e-5f6a7b8c9d0e",
+    vendorId: VENDOR_IDS.valkeyGear,
+    title: "Studio audio upgrade",
+    imageUrl: "/assets/images/products/headphones.svg",
+    targetUrl: "/catalog",
+    targetCategories: [CATEGORY_IDS.audio],
+    targetKeywords: ["audio", "headphones", "music", "studio"],
+    bidAmount: 720,
+    dailyBudget: 25000,
+    status: "active",
+  },
+];
+
+export const WAREHOUSE_FIXTURES = [
+  { id: "HYD-WH-01", lat: 17.4156, lng: 78.4347 },
+  { id: "HYD-WH-02", lat: 17.4435, lng: 78.3772 },
+  { id: "HYD-WH-03", lat: 17.385, lng: 78.4867 },
+];
+
+export const DELIVERY_TRACKING_FIXTURES: DeliveryTracking[] = [
+  {
+    trackingId: "DEL-HYD-TEAM-DOD",
+    orderId: "order:demo-delivery",
+    agentId: "agent_raj_001",
+    status: "in_transit",
+    pickupLocation: { lat: 17.4156, lng: 78.4347 },
+    dropLocation: { lat: 17.4300, lng: 78.4100 },
+    currentLocation: { lat: 17.4200, lng: 78.4200 },
+    estimatedArrival: "2026-05-24T12:00:00.000Z",
+    history: [
+      { status: "picked_up", timestamp: "2026-05-24T10:00:00.000Z", lat: 17.4156, lng: 78.4347 },
+      { status: "in_transit", timestamp: "2026-05-24T10:15:00.000Z", lat: 17.4200, lng: 78.4200 },
+    ],
   },
 ];

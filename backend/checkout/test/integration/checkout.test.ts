@@ -57,6 +57,7 @@ describe("BullMQ checkout backed by Valkey", () => {
       CHECKOUT_WORKER_CONCURRENCY: "2",
       EMBEDDING_SERVICE_URL: "local://deterministic",
       OPENSEARCH_URL: "http://127.0.0.1:9",
+      RATE_LIMIT_ENABLED: "false",
       RESERVATION_TTL_SECONDS: "30",
     });
     server = await runtime.start(0);

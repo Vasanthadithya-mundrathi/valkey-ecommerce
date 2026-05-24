@@ -13,6 +13,8 @@ import { createCheckoutApp } from "./server";
 import { ensureProductVectorIndex, upsertProductEmbeddings } from "./search";
 import { seedCoupons } from "./cart";
 import { ensureSeedCatalog } from "./catalog";
+import { seedDelivery } from "./delivery";
+import { seedEngagement } from "./engagement";
 import { listProducts } from "./store";
 
 export interface CheckoutRuntime {
@@ -35,6 +37,8 @@ export async function createCheckoutRuntime(env: NodeJS.ProcessEnv = process.env
   const embeddingClient = createEmbeddingClient(config.embeddingServiceUrl);
   await ensureSeedCatalog(client);
   await seedCoupons(client);
+  await seedEngagement(client);
+  await seedDelivery(client);
   const products = await listProducts(client);
   await upsertProductEmbeddings(client, products, embeddingClient.embedText);
   await ensureProductVectorIndex(client);

@@ -4,6 +4,8 @@ import { createEmbeddingClient } from "./embeddings";
 import { ensureProductVectorIndex, upsertProductEmbeddings } from "./search";
 import { seedCoupons } from "./cart";
 import { seedCatalog } from "./catalog";
+import { seedDelivery } from "./delivery";
+import { FULL_TEXT_INDEX, seedEngagement } from "./engagement";
 import { listProducts } from "./store";
 
 async function main() {
@@ -12,8 +14,11 @@ async function main() {
     const config = loadConfig();
     const embeddingClient = createEmbeddingClient(config.embeddingServiceUrl);
     await client.call("FT.DROPINDEX", "idx:product_vectors").catch(() => undefined);
+    await client.call("FT.DROPINDEX", FULL_TEXT_INDEX).catch(() => undefined);
     await seedCatalog(client);
     await seedCoupons(client);
+    await seedEngagement(client);
+    await seedDelivery(client);
     const products = await listProducts(client);
     await upsertProductEmbeddings(client, products, embeddingClient.embedText);
     const vectorIndexReady = await ensureProductVectorIndex(client);
