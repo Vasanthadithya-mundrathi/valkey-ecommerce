@@ -17,6 +17,7 @@ import DeliveryPage from "./pages/DeliveryPage";
 import RateLimitPage from "./pages/RateLimitPage";
 import RecommendationsPage from "./pages/RecommendationsPage";
 import AgenticSearchPage from "./pages/AgenticSearchPage";
+import IntegrationsPage from "./pages/IntegrationsPage";
 import AccountPage from "./pages/AccountPage";
 import BlogPage from "./pages/BlogPage";
 import BlogDetailsPage from "./pages/BlogDetailsPage";
@@ -50,6 +51,7 @@ function App() {
           <Route exact path='/ratelimit' element={<RateLimitPage />} />
           <Route exact path='/recommendations' element={<RecommendationsPage />} />
           <Route exact path='/agentic-search' element={<AgenticSearchPage />} />
+          <Route exact path='/integrations' element={<IntegrationsPage />} />
           <Route
             exact
             path='/product-details'

@@ -55,6 +55,7 @@ import {
 import { ApiError, errorBody, toApiError } from "./errors";
 import { withIdempotency } from "./idempotency";
 import type { InventoryScripts } from "./inventoryScripts";
+import { integrationDashboard } from "./integrations";
 import {
   analyticsDashboard,
   metricsMiddleware,
@@ -822,6 +823,14 @@ export function createCheckoutApp(context: CheckoutAppContext) {
   app.get("/api/observability/health", async (_request, response, next) => {
     try {
       response.json({ health: await observabilityHealth(context.client, context.config) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/integrations", async (_request, response, next) => {
+    try {
+      response.json(await integrationDashboard(context.client, context.config, context.queues));
     } catch (error) {
       next(error);
     }

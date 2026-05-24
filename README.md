@@ -89,6 +89,7 @@ Challenge demo pages:
 | `/ratelimit` | Challenge 12 Valkey sliding-window API rate limiting |
 | `/recommendations` | Challenge 13 real-time recommendations |
 | `/agentic-search` | Challenge 14 Valkey-backed agentic search memory |
+| `/integrations` | Valkey OSS integration coverage and live runtime evidence |
 
 ## Running Tests
 
@@ -202,6 +203,12 @@ Backend checkout commands:
 | `cd backend/checkout && npm run dev` | Start the API, BullMQ workers, and OpenSearch log forwarder |
 | `cd backend/checkout && npm test` | Run checkout, search, analytics, observability, delivery, rate limit, recommendation, and agent tests against Valkey |
 | `cd backend/checkout && npm run build` | Type-check and compile the backend |
+
+Integration evidence:
+
+| Endpoint | Description |
+|----------|-------------|
+| `/api/integrations` | Live Valkey-backed dashboard mapping implemented demo surfaces to `Valkey-Integrations.md` and `HACKATHON.md` |
 
 ## License
 

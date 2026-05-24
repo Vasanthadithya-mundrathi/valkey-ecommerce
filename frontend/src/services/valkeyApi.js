@@ -178,6 +178,10 @@ export async function agentSearch(input) {
   return request("/api/agent/search", { method: "POST", body: input });
 }
 
+export async function getIntegrationsDashboard() {
+  return request("/api/integrations");
+}
+
 export async function semanticSearch({ query, categoryId, minPrice, maxPrice, limit = 8 }) {
   const params = new URLSearchParams({ q: query, limit: String(limit) });
   if (categoryId) params.set("categoryId", categoryId);

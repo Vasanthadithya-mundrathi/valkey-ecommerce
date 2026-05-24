@@ -17,6 +17,7 @@ jest.mock('./pages/DeliveryPage', () => () => <main>Delivery challenge route</ma
 jest.mock('./pages/RateLimitPage', () => () => <main>Rate limit challenge route</main>);
 jest.mock('./pages/RecommendationsPage', () => () => <main>Recommendations challenge route</main>);
 jest.mock('./pages/AgenticSearchPage', () => () => <main>Agentic search challenge route</main>);
+jest.mock('./pages/IntegrationsPage', () => () => <main>Integrations route</main>);
 jest.mock('./pages/ProductDetailsPageOne', () => () => null);
 jest.mock('./pages/ProductDetailsPageTwo', () => () => null);
 jest.mock('./pages/CartPage', () => () => null);
@@ -57,6 +58,7 @@ test('routes to all remaining challenge pages', () => {
     ['/ratelimit', /Rate limit challenge route/i],
     ['/recommendations', /Recommendations challenge route/i],
     ['/agentic-search', /Agentic search challenge route/i],
+    ['/integrations', /Integrations route/i],
   ];
 
   routes.forEach(([path, matcher]) => {

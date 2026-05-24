@@ -13,6 +13,7 @@ const links = [
   { to: "/ratelimit", icon: "ph-shield-check", label: "Rate Limit" },
   { to: "/recommendations", icon: "ph-sparkle", label: "Recs" },
   { to: "/agentic-search", icon: "ph-robot", label: "Agent" },
+  { to: "/integrations", icon: "ph-plugs-connected", label: "Integrations" },
 ];
 
 const ValkeyChallengeNav = () => (

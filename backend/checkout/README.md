@@ -107,6 +107,7 @@ Catalog, search, cart, metrics, and observability endpoints are public for the d
 | `POST` | `/api/agent/search` | Challenge 14 agentic product search with Valkey conversation memory. |
 | `GET` | `/api/agent/conversation/:sessionId` | Fetch the stored agent conversation. |
 | `POST` | `/api/agent/feedback` | Record thumbs-up/down feedback for a product result. |
+| `GET` | `/api/integrations` | Unified integration dashboard with live Valkey evidence for `Valkey-Integrations.md` mappings. |
 
 Example checkout:
 

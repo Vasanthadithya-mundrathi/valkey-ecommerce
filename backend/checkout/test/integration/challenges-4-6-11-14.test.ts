@@ -213,4 +213,14 @@ describe("Challenges 4, 5, 6, 11, 12, 13, and 14 APIs", () => {
     });
     expect(feedback.response.status).toBe(200);
   });
+
+  test("exposes the unified integration dashboard with live Valkey evidence", async () => {
+    const integrations = await api("/api/integrations");
+    expect(integrations.response.status).toBe(200);
+    expect(integrations.body.summary.total).toBeGreaterThanOrEqual(10);
+    expect(integrations.body.summary.valkeyOnlyRuntime).toBe(true);
+    expect(integrations.body.liveEvidence.productCount).toBe(PRODUCT_FIXTURES.length);
+    expect(integrations.body.integrations.map((item: { id: string }) => item.id)).toContain("bullmq-checkout");
+    expect(integrations.body.integrations.map((item: { id: string }) => item.id)).toContain("agentic-memory");
+  });
 });
