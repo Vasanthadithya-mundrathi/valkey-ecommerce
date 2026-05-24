@@ -44,6 +44,10 @@ export function createValkeyClient(env: NodeJS.ProcessEnv = process.env): Redis 
   return new IORedis(createValkeyConnection(env));
 }
 
+export function createValkeyClientFromConnection(connection: ValkeyConnectionOptions): Redis {
+  return new IORedis(connection);
+}
+
 export async function assertValkeyReachable(client: Redis): Promise<void> {
   const timeout = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error("valkey_unreachable")), 5000);

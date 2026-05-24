@@ -5,6 +5,8 @@ import type { ApiEnvelope } from "./types";
 
 const REPLAY_TTL_SECONDS = 86400;
 const LOCK_TTL_SECONDS = 30;
+const LOCK_POLL_INTERVAL_MS = 100;
+const LOCK_MAX_POLL_ATTEMPTS = Math.ceil((LOCK_TTL_SECONDS * 1000) / LOCK_POLL_INTERVAL_MS);
 
 export async function withIdempotency(
   client: Redis,
@@ -25,8 +27,8 @@ export async function withIdempotency(
   const lockKey = idempotencyLockKey(userId, key);
   const lockAcquired = await client.set(lockKey, "1", "EX", LOCK_TTL_SECONDS, "NX");
   if (!lockAcquired) {
-    for (let attempt = 0; attempt < 50; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    for (let attempt = 0; attempt < LOCK_MAX_POLL_ATTEMPTS; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, LOCK_POLL_INTERVAL_MS));
       const replay = await client.get(replayKey);
       if (replay) {
         return JSON.parse(replay) as ApiEnvelope;

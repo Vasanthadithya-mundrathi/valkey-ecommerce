@@ -1,7 +1,7 @@
 import { type Server } from "node:http";
 import {
   assertValkeyReachable,
-  createValkeyClient,
+  createValkeyClientFromConnection,
   createValkeyConnection,
 } from "./connection";
 import { loadConfig, type CheckoutConfig } from "./config";
@@ -20,7 +20,7 @@ export interface CheckoutRuntime {
 export async function createCheckoutRuntime(env: NodeJS.ProcessEnv = process.env): Promise<CheckoutRuntime> {
   const config = loadConfig(env);
   const connection = createValkeyConnection(env);
-  const client = createValkeyClient(env);
+  const client = createValkeyClientFromConnection(connection);
   await assertValkeyReachable(client);
 
   const scripts = new InventoryScripts(client);
