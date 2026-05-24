@@ -251,11 +251,27 @@ async function confirmOrder(
     throw new ApiError(409, "invalid_order_state", "Order must be payment_authorized before confirmation.");
   }
 
-  for (const item of order.items) {
-    const nextQuantity = await scripts.commit(productKey(item.productId), item.quantity);
-    if (nextQuantity < 0) {
-      throw new ApiError(409, "inventory_commit_failed", "Reserved inventory could not be committed.");
+  const committedItems: Order["items"] = [];
+
+  try {
+    for (const item of order.items) {
+      const nextQuantity = await scripts.commit(productKey(item.productId), item.quantity);
+      if (nextQuantity < 0) {
+        throw new ApiError(409, "inventory_commit_failed", "Reserved inventory could not be committed.");
+      }
+      committedItems.push(item);
     }
+  } catch (error) {
+    if (committedItems.length > 0) {
+      await releaseReservations(client, scripts, {
+        ...order,
+        items: committedItems,
+      });
+    }
+    throw error;
+  }
+
+  for (const item of order.items) {
     await client.del(reservationKey(order.id, item.productId));
   }
 
