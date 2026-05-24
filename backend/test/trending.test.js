@@ -1,12 +1,12 @@
 'use strict';
 
-// Unit-tests the TrendingService against a fake Valkey client. We don't need
-// a live Valkey for these checks — only the contract between the service and
-// the client matters.
-
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { TrendingService } = require('../src/trending');
+const {
+  TrendingService,
+  globalKey,
+  categoryKey,
+} = require('../src/trending');
 const config = require('../src/config');
 
 function makeFakeValkey() {
@@ -34,7 +34,7 @@ function makeFakeValkey() {
       };
       return api;
     },
-    async zRangeWithScores(key, start, stop, _opts) {
+    async zRangeWithScores(key, start, stop) {
       const set = store.get(key) ?? new Map();
       const sorted = [...set.entries()]
         .map(([value, score]) => ({ value, score }))
@@ -45,35 +45,57 @@ function makeFakeValkey() {
 }
 
 function makeFakeIo() {
-  const emits = [];
-  return {
-    emits,
-    to() {
-      return {
-        emit(event, payload) {
-          emits.push({ event, payload });
-        },
-      };
-    },
-  };
+  return { to: () => ({ emit() {} }) };
 }
 
-test('recordEvent applies weights and getTop returns descending scores', async () => {
+test('recordEvent applies weights to all global windows', async () => {
   const valkey = makeFakeValkey();
-  const io = makeFakeIo();
-  const trending = new TrendingService({ valkey, io });
+  const trending = new TrendingService({ valkey, io: makeFakeIo() });
 
   await trending.recordEvent('p1', 'view'); // +1
-  await trending.recordEvent('p2', 'addToCart'); // +3
-  await trending.recordEvent('p3', 'purchase'); // +5
-  await trending.recordEvent('p1', 'purchase'); // +5 -> p1 = 6
+  await trending.recordEvent('p1', 'purchase'); // +5
 
-  const top = await trending.getTop(3);
-  assert.equal(top.length, 3);
-  assert.equal(top[0].productId, 'p1');
-  assert.equal(top[0].score, config.trendingWeights.view + config.trendingWeights.purchase);
-  assert.equal(top[1].productId, 'p3');
-  assert.equal(top[2].productId, 'p2');
+  for (const window of ['1h', '6h', '24h']) {
+    const set = valkey.store.get(globalKey(window));
+    assert.ok(set, `${window} bucket exists`);
+    assert.equal(
+      set.get('p1'),
+      config.trendingWeights.view + config.trendingWeights.purchase,
+      `${window} bucket has weighted score`
+    );
+  }
+});
+
+test('recordEvent with categoryId updates per-category bucket too', async () => {
+  const valkey = makeFakeValkey();
+  const trending = new TrendingService({ valkey, io: makeFakeIo() });
+
+  await trending.recordEvent('p1', 'addToCart', { categoryId: 'cat:1' });
+  await trending.recordEvent('p2', 'addToCart', { categoryId: 'cat:2' });
+
+  const cat1 = valkey.store.get(categoryKey('cat:1', '1h'));
+  assert.ok(cat1.has('p1'));
+  assert.ok(!cat1.has('p2'));
+});
+
+test('getTop respects window and categoryId selectors', async () => {
+  const valkey = makeFakeValkey();
+  const trending = new TrendingService({ valkey, io: makeFakeIo() });
+
+  await trending.recordEvent('p1', 'purchase', { categoryId: 'cat:1' });
+  await trending.recordEvent('p2', 'view');
+
+  const globalTop = await trending.getTop({ window: '24h' });
+  assert.equal(globalTop[0].productId, 'p1');
+
+  const cat1Top = await trending.getTop({ categoryId: 'cat:1', window: '1h' });
+  assert.equal(cat1Top.length, 1);
+  assert.equal(cat1Top[0].productId, 'p1');
+});
+
+test('getTop rejects unknown windows', async () => {
+  const trending = new TrendingService({ valkey: makeFakeValkey(), io: makeFakeIo() });
+  await assert.rejects(() => trending.getTop({ window: '5min' }), /Unknown trending window/);
 });
 
 test('recordEvent rejects unknown actions', async () => {

@@ -2,16 +2,35 @@
 
 // Trending products service — Challenge 4 wired into the live feed.
 //
-// Events get scored using the weights from config.js and stored in a Valkey
-// sorted set (ZINCRBY). The top-N members are broadcast to every connected
-// client through socket.io. Because the socket.io adapter is backed by Valkey,
-// this works the same whether you have one backend node or twenty.
+// Events get scored using the weights from config.js and stored in Valkey
+// sorted sets (ZINCRBY). Each event updates four windows:
+//   - global 1h   trending:global:1h    (TTL 3600)
+//   - global 6h   trending:global:6h    (TTL 21600)
+//   - global 24h  trending:global:24h   (TTL 86400)
+//   - per-category, all three windows: trending:category:{categoryId}:{w}
+//
+// The TTL on each key gives us automatic time-decay: older buckets just fall
+// off when they expire.
+//
+// The top-N members of the global 1h window are broadcast to every connected
+// client through socket.io. Because the socket.io adapter is backed by
+// Valkey, this works the same with one backend or twenty.
 
 const config = require('./config');
 const rooms = require('./rooms');
 
-const TRENDING_KEY_1H = 'trending:global:1h';
-const TRENDING_KEY_24H = 'trending:global:24h';
+const WINDOW_SECONDS = {
+  '1h': 3600,
+  '6h': 21600,
+  '24h': 86400,
+};
+
+const VALID_WINDOWS = Object.keys(WINDOW_SECONDS);
+const VALID_ACTIONS = ['view', 'addToCart', 'purchase'];
+
+const globalKey = (window) => `trending:global:${window}`;
+const categoryKey = (categoryId, window) =>
+  `trending:category:${categoryId}:${window}`;
 
 class TrendingService {
   /**
@@ -26,41 +45,52 @@ class TrendingService {
 
   /**
    * Record an interaction for a product. The score increment depends on the
-   * action ("view" | "addToCart" | "purchase").
+   * action ("view" | "addToCart" | "purchase"). When `categoryId` is provided
+   * the same increment is applied to the per-category sorted sets.
    *
    * @param {string} productId
    * @param {'view'|'addToCart'|'purchase'} action
+   * @param {{ categoryId?: string }} [opts]
    */
-  async recordEvent(productId, action) {
-    const weight = config.trendingWeights[action];
-    if (!weight) {
+  async recordEvent(productId, action, opts = {}) {
+    if (!VALID_ACTIONS.includes(action)) {
       throw new Error(`Unknown trending action: ${action}`);
     }
+    const weight = config.trendingWeights[action];
 
-    // Increment both windows in a single round trip.
     const multi = this.valkey.multi();
-    multi.zIncrBy(TRENDING_KEY_1H, weight, productId);
-    multi.expire(TRENDING_KEY_1H, 3600);
-    multi.zIncrBy(TRENDING_KEY_24H, weight, productId);
-    multi.expire(TRENDING_KEY_24H, 86400);
+    for (const window of VALID_WINDOWS) {
+      const ttl = WINDOW_SECONDS[window];
+      multi.zIncrBy(globalKey(window), weight, productId);
+      multi.expire(globalKey(window), ttl);
+      if (opts.categoryId) {
+        multi.zIncrBy(categoryKey(opts.categoryId, window), weight, productId);
+        multi.expire(categoryKey(opts.categoryId, window), ttl);
+      }
+    }
     await multi.exec();
 
     this._scheduleBroadcast();
   }
 
   /**
-   * Read the current top-N trending products with scores.
+   * Read the top-N trending products in a given window.
+   * @param {{ window?: '1h'|'6h'|'24h', categoryId?: string, limit?: number }} [opts]
    * @returns {Promise<Array<{ productId: string, score: number }>>}
    */
-  async getTop(limit = config.trendingTopN) {
-    // zRangeWithScores requires REV for descending order. Using zRange with
-    // REV is the modern, non-deprecated path in node-redis v4.
-    const items = await this.valkey.zRangeWithScores(
-      TRENDING_KEY_1H,
-      0,
-      limit - 1,
-      { REV: true }
-    );
+  async getTop(opts = {}) {
+    const window = opts.window ?? '1h';
+    const limit = opts.limit ?? config.trendingTopN;
+    if (!VALID_WINDOWS.includes(window)) {
+      throw new Error(`Unknown trending window: ${window}`);
+    }
+    const key = opts.categoryId
+      ? categoryKey(opts.categoryId, window)
+      : globalKey(window);
+
+    const items = await this.valkey.zRangeWithScores(key, 0, limit - 1, {
+      REV: true,
+    });
     return items.map((entry) => ({ productId: entry.value, score: entry.score }));
   }
 
@@ -80,8 +110,9 @@ class TrendingService {
       this._broadcastTimer = null;
       this._lastBroadcast = Date.now();
       try {
-        const top = await this.getTop();
+        const top = await this.getTop({ window: '1h' });
         this.io.to(rooms.trending()).emit('trending:update', {
+          window: '1h',
           top,
           updatedAt: new Date().toISOString(),
         });
@@ -92,4 +123,10 @@ class TrendingService {
   }
 }
 
-module.exports = { TrendingService, TRENDING_KEY_1H, TRENDING_KEY_24H };
+module.exports = {
+  TrendingService,
+  VALID_WINDOWS,
+  WINDOW_SECONDS,
+  globalKey,
+  categoryKey,
+};

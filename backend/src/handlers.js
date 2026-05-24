@@ -7,13 +7,18 @@
 //   subscribe:cart       { userId }                   -> joins cart room
 //   subscribe:trending   {}                           -> joins trending room
 //   subscribe:inventory  {}                           -> joins inventory room
-//   product:view         { productId }                -> trending event
-//   product:add-to-cart  { productId, userId, qty? }  -> cart + trending + inventory
-//   product:purchase     { productId, qty? }          -> trending + inventory
-//   cart:set             { userId, productId, qty }   -> server-authoritative set
+//   product:view         { productId, categoryId? }   -> trending event
+//   product:add-to-cart  { productId, userId, qty?, categoryId? }
+//   product:purchase     { productId, qty?, categoryId? }
+//   cart:set             { userId, productId, qty }
 //   cart:remove          { userId, productId }
 //   cart:clear           { userId }
-//   trending:get         {}                           -> ack returns top-N
+//   trending:get         { window?, categoryId? }     -> ack returns top-N
+//   ads:select           { categoryId?, keywords?, userId?, limit? } -> ack
+//   ads:impression       { adId, userId? }
+//   ads:click            { adId, userId? }
+//   search:query         { q, ... }                   -> ack returns results
+//   search:suggest       { q, max? }                  -> ack returns names
 
 const config = require('./config');
 const rooms = require('./rooms');
@@ -23,10 +28,12 @@ const rooms = require('./rooms');
  *   io: import('socket.io').Server,
  *   trending: import('./trending').TrendingService,
  *   inventory: import('./inventory').InventoryService,
- *   cart: import('./cart').CartService
+ *   cart: import('./cart').CartService,
+ *   ads: import('./ads').AdsService,
+ *   search: import('./search').SearchService
  * }} deps
  */
-function registerHandlers({ io, trending, inventory, cart }) {
+function registerHandlers({ io, trending, inventory, cart, ads, search }) {
   io.on('connection', (socket) => {
     const handshakeUserId = socket.handshake.auth?.userId;
     if (handshakeUserId) {
@@ -73,10 +80,11 @@ function registerHandlers({ io, trending, inventory, cart }) {
     });
 
     // ---- product interactions ----------------------------------------------
-    socket.on('product:view', async ({ productId } = {}, ack) => {
+    socket.on('product:view', async (payload = {}, ack) => {
+      const { productId, categoryId } = payload;
       if (!productId) return ack?.({ ok: false, error: 'productId required' });
       try {
-        await trending.recordEvent(productId, 'view');
+        await trending.recordEvent(productId, 'view', { categoryId });
         ack?.({ ok: true });
       } catch (err) {
         ack?.({ ok: false, error: err.message });
@@ -84,7 +92,7 @@ function registerHandlers({ io, trending, inventory, cart }) {
     });
 
     socket.on('product:add-to-cart', async (payload = {}, ack) => {
-      const { productId, userId, qty = 1 } = payload;
+      const { productId, userId, qty = 1, categoryId } = payload;
       const uid = userId || socket.data.userId;
       if (!productId || !uid) {
         return ack?.({ ok: false, error: 'productId and userId required' });
@@ -95,7 +103,7 @@ function registerHandlers({ io, trending, inventory, cart }) {
           return ack?.({ ok: false, error: 'out_of_stock' });
         }
         await cart.addItem(uid, productId, qty);
-        await trending.recordEvent(productId, 'addToCart');
+        await trending.recordEvent(productId, 'addToCart', { categoryId });
         ack?.({ ok: true, remaining });
       } catch (err) {
         ack?.({ ok: false, error: err.message });
@@ -103,10 +111,10 @@ function registerHandlers({ io, trending, inventory, cart }) {
     });
 
     socket.on('product:purchase', async (payload = {}, ack) => {
-      const { productId, qty = 1 } = payload;
+      const { productId, qty = 1, categoryId } = payload;
       if (!productId) return ack?.({ ok: false, error: 'productId required' });
       try {
-        await trending.recordEvent(productId, 'purchase');
+        await trending.recordEvent(productId, 'purchase', { categoryId });
         ack?.({ ok: true });
       } catch (err) {
         ack?.({ ok: false, error: err.message });
@@ -166,9 +174,13 @@ function registerHandlers({ io, trending, inventory, cart }) {
     });
 
     // ---- read APIs ---------------------------------------------------------
-    socket.on('trending:get', async (_payload, ack) => {
+    socket.on('trending:get', async (payload = {}, ack) => {
       try {
-        const top = await trending.getTop();
+        const top = await trending.getTop({
+          window: payload.window,
+          categoryId: payload.categoryId,
+          limit: payload.limit,
+        });
         ack?.({ ok: true, top });
       } catch (err) {
         ack?.({ ok: false, error: err.message });
@@ -187,6 +199,64 @@ function registerHandlers({ io, trending, inventory, cart }) {
         ack?.({ ok: false, error: err.message });
       }
     });
+
+    // ---- ads ---------------------------------------------------------------
+    if (ads) {
+      socket.on('ads:select', async (payload = {}, ack) => {
+        try {
+          const uid = payload.userId || socket.data.userId;
+          const selected = await ads.select({ ...payload, userId: uid });
+          ack?.({ ok: true, ads: selected });
+        } catch (err) {
+          ack?.({ ok: false, error: err.message });
+        }
+      });
+
+      socket.on('ads:impression', async (payload = {}, ack) => {
+        const { adId } = payload;
+        const uid = payload.userId || socket.data.userId;
+        if (!adId) return ack?.({ ok: false, error: 'adId required' });
+        try {
+          await ads.recordImpression(adId, uid);
+          ack?.({ ok: true });
+        } catch (err) {
+          ack?.({ ok: false, error: err.message });
+        }
+      });
+
+      socket.on('ads:click', async (payload = {}, ack) => {
+        const { adId } = payload;
+        const uid = payload.userId || socket.data.userId;
+        if (!adId) return ack?.({ ok: false, error: 'adId required' });
+        try {
+          await ads.recordClick(adId, uid);
+          ack?.({ ok: true });
+        } catch (err) {
+          ack?.({ ok: false, error: err.message });
+        }
+      });
+    }
+
+    // ---- search ------------------------------------------------------------
+    if (search) {
+      socket.on('search:query', async (payload = {}, ack) => {
+        try {
+          const result = await search.search(payload);
+          ack?.({ ok: true, ...result });
+        } catch (err) {
+          ack?.({ ok: false, error: err.message });
+        }
+      });
+
+      socket.on('search:suggest', async (payload = {}, ack) => {
+        try {
+          const suggestions = await search.suggest(payload.q, payload.max);
+          ack?.({ ok: true, suggestions });
+        } catch (err) {
+          ack?.({ ok: false, error: err.message });
+        }
+      });
+    }
   });
 }
 

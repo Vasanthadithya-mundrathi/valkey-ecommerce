@@ -1,12 +1,13 @@
-# Valkey E-Commerce Backend (Challenge 26)
+# Valkey E-Commerce Backend
 
-Realtime backend for the Valkey e-commerce demo. Implements **Challenge 26** from `Valkey-Integrations.md`: a first-class **socket.io ↔ Valkey** integration using the `@socket.io/redis-adapter` package against Valkey's Redis-7.2 wire protocol.
+Realtime backend for the Valkey e-commerce demo. Implements four challenges from `HACKATHON.md` and `Valkey-Integrations.md` against the same Valkey instance:
 
-## What this demonstrates
-
-- **Drop-in adapter** — `@socket.io/redis-adapter` connects to Valkey with no code changes. Two pub/sub clients are sufficient to scale socket.io across replicas.
-- **Multi-node fan-out** — emit a socket event on `node1` and every client connected to `node2`, `node3`, … receives it via Valkey pub/sub.
-- **E-commerce events** — live trending products, live inventory deltas, and cross-tab cart sync all driven through socket.io rooms.
+| # | Challenge                  | Where it lives                       |
+| - | -------------------------- | ------------------------------------ |
+| 4 | Trending products          | `src/trending.js`, `/api/trending/*` |
+| 5 | Ads with targeting + caps  | `src/ads.js`, `/api/ads/*`           |
+| 6 | Full-text search + facets  | `src/search.js`, `/api/search/*`     |
+| 26| socket.io ↔ Valkey adapter | `src/socket.js`, `/api/health`       |
 
 ## Architecture
 
@@ -22,46 +23,105 @@ Realtime backend for the Valkey e-commerce demo. Implements **Challenge 26** fro
           │ pub/sub + commands │
           ▼                    ▼
             ┌──────────────────┐
-            │      Valkey      │  (sorted sets, hashes, pub/sub)
+            │      Valkey      │  sorted sets (trending, ads index)
+            │                  │  hashes      (cart, inventory)
+            │                  │  strings     (ads, counters)
+            │                  │  pub/sub     (socket.io adapter)
+            │                  │  FT.* opt.   (search, when bundle is used)
             └──────────────────┘
 ```
 
-## Event vocabulary
+## Challenge 4 — Trending products
 
-| Direction | Event                | Payload                              | Notes                                    |
-| --------- | -------------------- | ------------------------------------ | ---------------------------------------- |
-| C → S     | `subscribe:product`  | `{ productId }`                      | join product room for stock updates      |
-| C → S     | `subscribe:cart`     | `{ userId }`                         | join personal cart room                  |
-| C → S     | `subscribe:trending` | `{}`                                 | join global trending room                |
-| C → S     | `subscribe:inventory`| `{}`                                 | join global inventory room               |
-| C → S     | `product:view`       | `{ productId }`                      | trending + 1                             |
-| C → S     | `product:add-to-cart`| `{ productId, userId, qty }`         | reserve stock, cart hash, trending + 3   |
-| C → S     | `product:purchase`   | `{ productId, qty }`                 | trending + 5                             |
-| C → S     | `cart:set` / `:remove` / `:clear` | cart mutations         | server-authoritative                     |
-| C → S     | `trending:get` / `inventory:get` / `cart:get` | reads w/ ack       | for initial bootstrap                    |
-| S → C     | `hello`              | `{ socketId, nodeId, serverTime }`   | tells client which backend node served it|
-| S → C     | `trending:update`    | `{ top: [{productId, score}], updatedAt }` | throttled to once per 1s            |
-| S → C     | `inventory:update`   | `{ productId, quantity, reason }`    | broadcast on every stock change          |
-| S → C     | `cart:update`        | `{ userId, type, productId, quantity }` | cross-tab cart sync                   |
+Score weights live in `config.js` (`view: 1, addToCart: 3, purchase: 5`). Each event updates three sliding windows (`1h`, `6h`, `24h`) of both a **global** and a **per-category** sorted set:
+
+```
+trending:global:1h    trending:global:6h    trending:global:24h
+trending:category:{categoryId}:1h           …:6h    …:24h
+```
+
+TTLs on each key give automatic time-decay.
+
+REST surface:
+
+| Method | Path                           | Notes                                     |
+| ------ | ------------------------------ | ----------------------------------------- |
+| GET    | `/api/trending?window=1h`      | global trending; window = `1h`/`6h`/`24h` |
+| GET    | `/api/trending/:categoryId`    | category-scoped trending                  |
+| POST   | `/api/events/view`             | `{ productId, categoryId? }`              |
+| POST   | `/api/events/add-to-cart`      | `{ productId, categoryId? }`              |
+| POST   | `/api/events/purchase`         | `{ productId, categoryId? }`              |
+
+Socket events: `product:view`, `product:add-to-cart`, `product:purchase`, `trending:get`, `trending:update` (broadcast).
+
+## Challenge 5 — Ads
+
+Ads are stored as JSON strings under `ad:{adId}`. Two indexes are kept as sorted sets keyed by category and keyword, with the bid as score, so selection is a simple `ZREVRANGEBYSCORE` followed by per-ad budget and frequency-cap checks.
+
+| Counter                          | Purpose                  | TTL   |
+| -------------------------------- | ------------------------ | ----- |
+| `ad_impressions:{adId}:{date}`   | impressions today        | 24h   |
+| `ad_clicks:{adId}:{date}`        | clicks today             | 24h   |
+| `ad_freq:{userId}:{adId}:{date}` | per-user frequency cap   | 24h   |
+| `ad_spend:{adId}:{date}`         | running spend today      | 24h   |
+
+REST surface:
+
+| Method | Path                              | Notes                                |
+| ------ | --------------------------------- | ------------------------------------ |
+| GET    | `/api/ads?categoryId=…`           | also accepts `keywords=a,b,c`        |
+| POST   | `/api/ads`                        | create / replace ad creative         |
+| POST   | `/api/ads/:adId/impression`       | increments counter + spend           |
+| POST   | `/api/ads/:adId/click`            | increments click counter             |
+| GET    | `/api/ads/:adId/stats?date=…`     | `{impressions, clicks, ctr, spend}`  |
+
+Socket events: `ads:select`, `ads:impression`, `ads:click`.
+
+## Challenge 6 — Full-text search
+
+`SearchService` first tries `FT.CREATE idx:products` against Valkey (works on the `valkey-bundle` image). If the module is not loaded it transparently falls back to a small in-memory engine that supports the same surface area:
+
+- Full-text scoring with field weights (name × 5, brand × 3, tags × 2, description × 1)
+- Prefix match and Levenshtein-tolerant fuzzy match (`galxy` → `galaxy`)
+- Filters: `categoryId`, `brand`, `minPrice`, `maxPrice`
+- Facets: brands, categories, fixed price buckets
+- Sort: `relevance | price_asc | price_desc | rating | newest`
+- Autocomplete via `/api/search/suggest`
+
+REST surface:
+
+| Method | Path                                                        | Returns                            |
+| ------ | ----------------------------------------------------------- | ---------------------------------- |
+| GET    | `/api/search?q=&category=&brand=&minPrice=&maxPrice=&sort=` | `{ total, results, facets, … }`    |
+| GET    | `/api/search/suggest?q=&max=`                               | `{ suggestions: [{name, …}] }`     |
+| GET    | `/api/search/facets?q=`                                     | `{ facets, total }`                |
+
+Socket events: `search:query`, `search:suggest`.
+
+The active backend is reported in every search response as `"backend": "valkey-search"` or `"backend": "in-memory"`.
+
+## Challenge 26 — socket.io ↔ Valkey adapter
+
+`@socket.io/redis-adapter` is wired against Valkey in `src/socket.js`. Two dedicated pub/sub clients are required by the adapter; a third connection handles ordinary command traffic. Once attached, every emit on this node is published to a Valkey channel and re-broadcast on every other node subscribed to the same channel.
+
+See `docker-compose.yml` for a multi-node demo (`backend-node1` on port 4001, `backend-node2` on port 4002, both pointed at the same Valkey).
 
 ## Run it
 
-### Local (single backend)
+### Local, single backend
 
 ```bash
-# 1. Start Valkey
 docker run -d --name valkey -p 6379:6379 valkey/valkey-bundle:9-alpine
 
-# 2. Install + start backend
 cd backend
 npm install
 npm start
-# -> [server] node-12345 listening on :4000 (valkey=redis://localhost:6379)
+# -> [server] node-12345 listening on :4000 (valkey=redis://localhost:6379, search=valkey-search)
 
-# 3. (separate shell) start frontend, visit http://localhost:3000/live
-cd frontend
+cd ../frontend
 npm install
 npm start
+# visit http://localhost:3000/live
 ```
 
 ### Multi-node (proves the adapter)
@@ -70,24 +130,7 @@ npm start
 docker compose up --build
 # backend-node1 -> http://localhost:4001
 # backend-node2 -> http://localhost:4002
-
-# Point the frontend at one node
-REACT_APP_BACKEND_URL=http://localhost:4001 npm start --prefix frontend
 ```
-
-Open `/live` in two browser tabs. One tab will be served by `node1`, the other may be served by either node depending on your reverse proxy (here you connect them directly to one node, but their messages flow through Valkey to all connected nodes — you can verify by switching `REACT_APP_BACKEND_URL` between tabs).
-
-## REST API
-
-The HTTP surface is intentionally tiny — its only job is to bootstrap state.
-
-| Method | Path                  | Returns                                |
-| ------ | --------------------- | -------------------------------------- |
-| GET    | `/api/health`         | `{ ok, nodeId, valkey, sockets, time }`|
-| GET    | `/api/products`       | seeded catalog with current stock      |
-| GET    | `/api/trending`       | top-N trending products                |
-| GET    | `/api/inventory`      | full stock map                         |
-| GET    | `/api/cart/:userId`   | current cart for a user                |
 
 ## Tests
 
@@ -96,11 +139,9 @@ cd backend
 npm test
 ```
 
-Runs unit tests against `TrendingService`, `InventoryService`, `CartService`, and the room-name helpers using Node's built-in test runner. No live Valkey required for tests.
+Runs the full suite (31 tests) using Node's built-in test runner — unit tests with fake Valkeys for trending / inventory / cart / ads / search, plus end-to-end socket.io integration tests that boot a real server with two real clients.
 
 ## Configuration
-
-All knobs are environment variables (see `.env.example`):
 
 | Variable      | Default                  | Purpose                                      |
 | ------------- | ------------------------ | -------------------------------------------- |
@@ -108,11 +149,3 @@ All knobs are environment variables (see `.env.example`):
 | `NODE_ID`     | `node-{pid}`             | label echoed in `hello` and `/api/health`    |
 | `VALKEY_URL`  | `redis://localhost:6379` | Valkey connection string                     |
 | `CORS_ORIGIN` | `*`                      | comma-separated allowed origins              |
-
-## Why this counts as a Valkey integration
-
-Although `@socket.io/redis-adapter` is named after Redis, it ships against the wire protocol that Valkey implements. This project demonstrates:
-
-1. The adapter works against Valkey unmodified.
-2. Valkey's data structures (sorted sets for trending, hashes for cart and inventory, strings for bootstrapping) cleanly back the realtime e-commerce surface.
-3. Horizontal scale-out works as advertised: events emitted on one node reach clients connected to any other node through Valkey pub/sub.
