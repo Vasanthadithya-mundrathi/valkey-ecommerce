@@ -6,3 +6,4 @@ backend/*/coverage/
 .env.*
 !.env.example
 .DS_Store
+.claude/
