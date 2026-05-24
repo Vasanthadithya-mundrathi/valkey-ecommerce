@@ -1,0 +1,29 @@
+{
+  "name": "valkey-ecommerce-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Real-time backend for the Valkey e-commerce demo. Showcases Challenge 26: socket.io + Valkey integration via @socket.io/redis-adapter.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "start:node1": "PORT=4001 NODE_ID=node1 node src/server.js",
+    "start:node2": "PORT=4002 NODE_ID=node2 node src/server.js",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "@socket.io/redis-adapter": "8.3.0",
+    "cors": "2.8.5",
+    "express": "4.21.2",
+    "redis": "4.7.0",
+    "socket.io": "4.8.1",
+    "uuid": "11.0.3"
+  },
+  "devDependencies": {
+    "nodemon": "3.1.7",
+    "socket.io-client": "4.8.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -131,6 +131,29 @@ Teams will implement backend subsystems using Valkey:
 | Real-time Recommendations | Personalized product suggestions |
 | Agentic Search | AI-powered search experience |
 
+## Challenge 26: socket.io + Valkey integration
+
+A working integration of [socket.io](https://socket.io) with Valkey via `@socket.io/redis-adapter` is included under [`backend/`](./backend/README.md). It powers a `/live` page in the frontend that demonstrates real-time trending products, live inventory deltas, and cross-tab cart sync.
+
+```bash
+# 1. Start Valkey
+docker run -d --name valkey -p 6379:6379 valkey/valkey-bundle:9-alpine
+
+# 2. Start the realtime backend
+cd backend && npm install && npm start
+
+# 3. Start the frontend, then visit http://localhost:3000/live
+cd ../frontend && npm install && npm start
+```
+
+For the multi-node demo (proves the adapter fans events out across replicas):
+
+```bash
+docker compose up --build
+```
+
+See [`backend/README.md`](./backend/README.md) for the full event vocabulary, REST surface, and architecture notes.
+
 ## Connecting to Valkey
 
 Use the [valkey-bundle](https://github.com/valkey-io/valkey-bundle) Docker image to access all Valkey modules:

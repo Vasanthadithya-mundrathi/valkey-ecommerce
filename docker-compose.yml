@@ -1,0 +1,52 @@
+# Multi-instance demo for Challenge 26.
+#
+# Brings up Valkey plus two backend replicas. Both replicas connect to the
+# same Valkey via @socket.io/redis-adapter, so a socket emit on node1 is
+# delivered to clients connected to node2 (and vice versa).
+#
+# Bring it up:
+#   docker compose up --build
+#
+# Hit each node directly to see the NODE_ID change:
+#   curl http://localhost:4001/api/health
+#   curl http://localhost:4002/api/health
+
+services:
+  valkey:
+    image: valkey/valkey-bundle:9-alpine
+    container_name: valkey
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend-node1:
+    build: ./backend
+    container_name: backend-node1
+    environment:
+      PORT: 4000
+      NODE_ID: node1
+      VALKEY_URL: redis://valkey:6379
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "4001:4000"
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+  backend-node2:
+    build: ./backend
+    container_name: backend-node2
+    environment:
+      PORT: 4000
+      NODE_ID: node2
+      VALKEY_URL: redis://valkey:6379
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "4002:4000"
+    depends_on:
+      valkey:
+        condition: service_healthy

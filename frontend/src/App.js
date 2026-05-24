@@ -19,6 +19,7 @@ import VendorTwoPage from "./pages/VendorTwoPage";
 import VendorTwoDetailsPage from "./pages/VendorTwoDetailsPage";
 import BecomeSellerPage from "./pages/BecomeSellerPage";
 import WishlistPage from "./pages/WishlistPage";
+import LivePage from "./pages/LivePage";
 function App() {
   return (
     <BrowserRouter>
@@ -56,6 +57,7 @@ function App() {
           path='/vendor-two-details'
           element={<VendorTwoDetailsPage />}
         />
+        <Route exact path='/live' element={<LivePage />} />
       </Routes>
     </BrowserRouter>
   );
