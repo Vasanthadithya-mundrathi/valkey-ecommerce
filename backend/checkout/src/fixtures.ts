@@ -16,17 +16,18 @@ export const VENDOR_IDS = {
   valkeyGear: "vendor:0192d4e7-5e6f-7c8d-9a0b-2c3d4e5f6a7b",
 } as const;
 
+// Real product photos hosted on Wikimedia Commons (free license). Hotlinked live URLs.
 const PRODUCT_IMAGES = [
-  "/assets/images/products/keyboard.svg",
-  "/assets/images/products/mouse.svg",
-  "/assets/images/products/usb-c-hub.svg",
-  "/assets/images/products/headphones.svg",
-  "/assets/images/products/desk-lamp.svg",
-  "/assets/images/products/smart-bottle.svg",
-  "/assets/images/products/laptop-stand.svg",
-  "/assets/images/products/travel-charger.svg",
-  "/assets/images/products/notebook-set.svg",
-  "/assets/images/products/backpack.svg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Mechanical_Keyboard.jpg/960px-Mechanical_Keyboard.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/A_wireless_computer_mouse.jpg/960px-A_wireless_computer_mouse.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/2023_Hub_USB_2.0.jpg/960px-2023_Hub_USB_2.0.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/Bose_QuietComfort_25_Acoustic_Noise_Cancelling_Headphones_with_Carry_Case.jpg/960px-Bose_QuietComfort_25_Acoustic_Noise_Cancelling_Headphones_with_Carry_Case.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Battery_powered_LED_desk_lamp-7420.jpg/960px-Battery_powered_LED_desk_lamp-7420.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Metal_Water_Bottles.jpeg/960px-Metal_Water_Bottles.jpeg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/IBM_Thinkpad_R51.jpg/960px-IBM_Thinkpad_R51.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/LG_FAST_CHARGER_%28AC_ADAPTER%29_LP90DGC20H-WW.jpg/960px-LG_FAST_CHARGER_%28AC_ADAPTER%29_LP90DGC20H-WW.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Stationery_Wholesale_Shop_notebooks.jpg/960px-Stationery_Wholesale_Shop_notebooks.jpg",
+  "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/A_backpack_with_trekking_poles_and_shoes.jpg/960px-A_backpack_with_trekking_poles_and_shoes.jpg",
 ];
 
 function product(
@@ -58,7 +59,7 @@ function product(
     },
     images: [
       {
-        url: PRODUCT_IMAGES[index - 1] ?? "/assets/images/products/keyboard.svg",
+        url: PRODUCT_IMAGES[index - 1] ?? PRODUCT_IMAGES[0],
         alt: name,
         isPrimary: true,
       },
@@ -227,7 +228,7 @@ export const AD_FIXTURES: AdCreative[] = [
     id: "ad:0192d4e9-6f7a-7d8e-9b0c-3d4e5f6a7b8c",
     vendorId: VENDOR_IDS.teamDod,
     title: "Team DoD workspace bundle",
-    imageUrl: "/assets/images/products/desk-lamp.svg",
+    imageUrl: PRODUCT_IMAGES[4],
     targetUrl: "/catalog",
     targetCategories: [CATEGORY_IDS.workspace, CATEGORY_IDS.input, CATEGORY_IDS.desk],
     targetKeywords: ["desk", "keyboard", "mouse", "workspace"],
@@ -239,7 +240,7 @@ export const AD_FIXTURES: AdCreative[] = [
     id: "ad:0192d4e9-7a8b-7e9f-9c0d-4e5f6a7b8c9d",
     vendorId: VENDOR_IDS.valkeyGear,
     title: "Valkey travel kit",
-    imageUrl: "/assets/images/products/backpack.svg",
+    imageUrl: PRODUCT_IMAGES[9],
     targetUrl: "/catalog",
     targetCategories: [CATEGORY_IDS.travel],
     targetKeywords: ["travel", "charger", "bottle", "backpack"],
@@ -251,7 +252,7 @@ export const AD_FIXTURES: AdCreative[] = [
     id: "ad:0192d4e9-8b9c-7f0a-9d1e-5f6a7b8c9d0e",
     vendorId: VENDOR_IDS.valkeyGear,
     title: "Studio audio upgrade",
-    imageUrl: "/assets/images/products/headphones.svg",
+    imageUrl: PRODUCT_IMAGES[3],
     targetUrl: "/catalog",
     targetCategories: [CATEGORY_IDS.audio],
     targetKeywords: ["audio", "headphones", "music", "studio"],

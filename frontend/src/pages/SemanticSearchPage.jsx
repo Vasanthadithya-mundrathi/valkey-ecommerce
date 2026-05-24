@@ -132,7 +132,7 @@ const SemanticSearchPage = () => {
               <div className="col-xl-3 col-md-6" key={product.id}>
                 <div className="border border-gray-100 rounded-8 p-20 h-100">
                   <div className="valkey-product-media mb-16">
-                    <img src={product.images?.[0]?.url || "/assets/images/products/keyboard.svg"} alt={product.name} />
+                    <img src={product.images?.[0]?.url || "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Mechanical_Keyboard.jpg/960px-Mechanical_Keyboard.jpg"} alt={product.name} />
                   </div>
                   <span className="text-xs text-main-600 fw-semibold">Score {Math.round(score * 100)}%</span>
                   <h6 className="text-lg mt-8 mb-8">{product.name}</h6>

@@ -87,7 +87,7 @@ const CartSection = () => {
                                 <td>
                                   <div className="table-product d-flex align-items-center gap-20">
                                     <div className="table-product__thumb valkey-product-media">
-                                      <img src={item.product.images?.[0]?.url || "/assets/images/products/keyboard.svg"} alt={item.product.name} />
+                                      <img src={item.product.images?.[0]?.url || "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Mechanical_Keyboard.jpg/960px-Mechanical_Keyboard.jpg"} alt={item.product.name} />
                                     </div>
                                     <div className="table-product__content text-start">
                                       <h6 className="title text-lg fw-semibold mb-8">{item.product.name}</h6>
