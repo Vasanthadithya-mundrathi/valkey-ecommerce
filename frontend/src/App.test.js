@@ -8,6 +8,7 @@ jest.mock('./pages/HomePageOne', () => () => <main>Valkey ecommerce storefront</
 jest.mock('./pages/HomePageTwo', () => () => null);
 jest.mock('./pages/HomePageThree', () => () => null);
 jest.mock('./pages/ShopPage', () => () => null);
+jest.mock('./pages/CatalogPage', () => () => <main>Catalog challenge route</main>);
 jest.mock('./pages/SemanticSearchPage', () => () => <main>Semantic search challenge route</main>);
 jest.mock('./pages/AnalyticsPage', () => () => <main>Analytics challenge route</main>);
 jest.mock('./pages/ObservabilityPage', () => () => <main>Observability challenge route</main>);
@@ -36,6 +37,12 @@ test('routes to semantic search challenge page', () => {
   window.history.pushState({}, '', '/semantic-search');
   render(<App />);
   expect(screen.getByText(/Semantic search challenge route/i)).toBeInTheDocument();
+});
+
+test('routes to catalog challenge page', () => {
+  window.history.pushState({}, '', '/catalog');
+  render(<App />);
+  expect(screen.getByText(/Catalog challenge route/i)).toBeInTheDocument();
 });
 
 test('routes to analytics challenge page', () => {

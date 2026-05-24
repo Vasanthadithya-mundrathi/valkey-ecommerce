@@ -1,72 +1,146 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  addCartItem,
+  applyCartCoupon,
+  clearCartApi,
+  getCart,
+  removeCartCoupon,
+  removeCartItem,
+  updateCartItem,
+} from "../services/valkeyApi";
 
 const CartContext = createContext(null);
-const STORAGE_KEY = "valkey-demo-cart";
+
+const emptySummary = {
+  items: [],
+  coupon: null,
+  couponError: "",
+  totals: {
+    subtotal: 0,
+    discount: 0,
+    total: 0,
+    count: 0,
+  },
+};
 
 export function CartProvider({ children }) {
-  const [items, setItems] = useState(() => readCart());
+  const [summary, setSummary] = useState(emptySummary);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+
+  const applySummary = useCallback((data) => {
+    setSummary(data?.cart || emptySummary);
+  }, []);
+
+  const refreshCart = useCallback(async () => {
+    setLoading(true);
+    setMessage("");
+    try {
+      applySummary(await getCart());
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [applySummary]);
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
+    void refreshCart();
+  }, [refreshCart]);
 
-  const addItem = useCallback((product, quantity = 1) => {
-    setItems((current) => {
-      const existing = current.find((item) => item.productId === product.id);
-      if (existing) {
-        return current.map((item) =>
-          item.productId === product.id
-            ? { ...item, product, quantity: Math.min(item.quantity + quantity, product.inventory.quantity) }
-            : item
-        );
+  const runCartMutation = useCallback(
+    async (operation) => {
+      setMessage("");
+      try {
+        const data = await operation();
+        applySummary(data);
+        return data?.cart;
+      } catch (error) {
+        setMessage(error.message);
+        return null;
       }
-      return [...current, { productId: product.id, product, quantity }];
-    });
-  }, []);
+    },
+    [applySummary]
+  );
 
-  const updateQuantity = useCallback((productId, quantity) => {
-    setItems((current) =>
-      current
-        .map((item) =>
-          item.productId === productId
-            ? { ...item, quantity: Math.max(1, Math.min(Number(quantity) || 1, item.product.inventory.quantity)) }
-            : item
-        )
-        .filter((item) => item.quantity > 0)
-    );
-  }, []);
+  const addItem = useCallback(
+    (product, quantity = 1) => runCartMutation(() => addCartItem(product.id, quantity)),
+    [runCartMutation]
+  );
 
-  const removeItem = useCallback((productId) => {
-    setItems((current) => current.filter((item) => item.productId !== productId));
-  }, []);
+  const updateQuantity = useCallback(
+    (productId, quantity) => {
+      const nextQuantity = Number(quantity);
+      if (!Number.isInteger(nextQuantity) || nextQuantity <= 0) {
+        return runCartMutation(() => removeCartItem(productId));
+      }
+      return runCartMutation(() => updateCartItem(productId, nextQuantity));
+    },
+    [runCartMutation]
+  );
 
-  const clearCart = useCallback(() => setItems([]), []);
+  const removeItem = useCallback(
+    (productId) => runCartMutation(() => removeCartItem(productId)),
+    [runCartMutation]
+  );
 
-  const loadDemoCart = useCallback((products) => {
-    const demoProducts = products.slice(0, 2);
-    setItems(demoProducts.map((product) => ({ productId: product.id, product, quantity: 1 })));
-  }, []);
+  const clearCart = useCallback(() => runCartMutation(() => clearCartApi()), [runCartMutation]);
 
-  const totals = useMemo(() => {
-    const subtotal = items.reduce((sum, item) => sum + item.product.price.amount * item.quantity, 0);
-    return {
-      subtotal,
-      total: subtotal,
-      count: items.reduce((sum, item) => sum + item.quantity, 0),
-    };
-  }, [items]);
+  const loadDemoCart = useCallback(
+    async (products) => {
+      const demoProducts = products.slice(0, 2);
+      let latest = await clearCart();
+      for (const product of demoProducts) {
+        latest = await addItem(product, 1);
+      }
+      return latest;
+    },
+    [addItem, clearCart]
+  );
+
+  const applyCoupon = useCallback(
+    (code) => runCartMutation(() => applyCartCoupon(code)),
+    [runCartMutation]
+  );
+
+  const removeCoupon = useCallback(
+    () => runCartMutation(() => removeCartCoupon()),
+    [runCartMutation]
+  );
 
   const value = useMemo(
     () => ({
-      items,
-      totals,
+      items: summary.items,
+      totals: summary.totals,
+      coupon: summary.coupon,
+      couponError: summary.couponError,
+      loading,
+      message,
       addItem,
       updateQuantity,
       removeItem,
       clearCart,
       loadDemoCart,
+      applyCoupon,
+      removeCoupon,
+      refreshCart,
     }),
-    [addItem, clearCart, items, loadDemoCart, removeItem, totals, updateQuantity]
+    [
+      addItem,
+      applyCoupon,
+      clearCart,
+      loadDemoCart,
+      loading,
+      message,
+      refreshCart,
+      removeCoupon,
+      removeItem,
+      summary.coupon,
+      summary.couponError,
+      summary.items,
+      summary.totals,
+      updateQuantity,
+    ]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
@@ -78,14 +152,4 @@ export function useCart() {
     throw new Error("useCart must be used within CartProvider");
   }
   return context;
-}
-
-function readCart() {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
 }

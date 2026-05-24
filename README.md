@@ -62,7 +62,7 @@ The app will be available at [http://localhost:3000](http://localhost:3000).
 
 ### 5. Run the integrated Valkey backend
 
-The backend serves the product catalog, semantic search, analytics, observability, and checkout APIs.
+The backend serves the authentication, product catalog, persistent cart, semantic search, analytics, observability, and checkout APIs.
 
 ```bash
 cd backend/checkout
@@ -77,6 +77,9 @@ Challenge demo pages:
 
 | Page | Challenge |
 |------|-----------|
+| `/account` | Challenge 1 Valkey-backed authentication and sessions |
+| `/catalog` | Challenge 2 Valkey JSON catalog with filters and pagination |
+| `/cart` | Challenge 3 persistent cart and coupons |
 | `/semantic-search` | Challenge 7 vector similarity search |
 | `/analytics` | Challenge 8 Prometheus analytics |
 | `/observability` | Challenge 9 OpenSearch observability |

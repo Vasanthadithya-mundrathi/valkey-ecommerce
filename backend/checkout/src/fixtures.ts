@@ -1,14 +1,28 @@
-import type { Product } from "./types";
+import type { Category, Coupon, Product, Vendor } from "./types";
 
 const now = "2026-05-24T00:00:00.000Z";
-const categoryId = "category:0192d4e2-3a7b-7e1f-8c4d-2b6a9f0e5d7c";
-const vendorId = "vendor:0192d4e7-4d5e-7b7c-9e9f-1a2b3c4d5e6f";
+
+export const CATEGORY_IDS = {
+  workspace: "category:0192d4e2-1f5a-7c3d-9b2e-8a4f6d0c1e3b",
+  input: "category:0192d4e2-3a7b-7e1f-8c4d-2b6a9f0e5d7c",
+  connectivity: "category:0192d4e2-4c8d-7a2e-9f1b-3d5c7e8a0b4f",
+  audio: "category:0192d4e2-5d9e-7b3f-8a2c-4e6d1f9b0c5a",
+  desk: "category:0192d4e4-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+  travel: "category:0192d4e5-5e6f-7a7b-8c8d-9e0f1a2b3c4d",
+} as const;
+
+export const VENDOR_IDS = {
+  teamDod: "vendor:0192d4e7-4d5e-7b7c-9e9f-1a2b3c4d5e6f",
+  valkeyGear: "vendor:0192d4e7-5e6f-7c8d-9a0b-2c3d4e5f6a7b",
+} as const;
 
 function product(
   index: number,
   name: string,
   price: number,
   quantity: number,
+  categoryId: string,
+  vendorId: string,
   searchTerms: string[],
   attributes: Record<string, string | number | boolean> = {}
 ): Product {
@@ -57,14 +71,140 @@ function product(
 }
 
 export const PRODUCT_FIXTURES: Product[] = [
-  product(1, "Valkey Wireless Keyboard", 2499, 25, ["typing", "keys", "wireless", "desk"], { color: "Graphite" }),
-  product(2, "Valkey Ergonomic Mouse", 1499, 30, ["cursor", "ergonomic", "wireless", "desk"], { color: "Green" }),
-  product(3, "Valkey USB-C Hub", 3299, 18, ["adapter", "ports", "dock", "usb"], { ports: 7 }),
-  product(4, "Valkey Studio Headphones", 5499, 12, ["audio", "sound", "music", "studio"], { color: "Black" }),
-  product(5, "Valkey Desk Lamp", 1999, 20, ["lighting", "reading", "office", "desk"], { color: "White" }),
-  product(6, "Valkey Smart Bottle", 1199, 35, ["hydration", "water", "smart", "travel"], { color: "Blue" }),
-  product(7, "Valkey Laptop Stand", 2799, 22, ["laptop", "stand", "ergonomic", "portable"], { color: "Silver" }),
-  product(8, "Valkey Travel Charger", 1899, 28, ["power", "charger", "travel", "adapter"], { watts: 65 }),
-  product(9, "Valkey Notebook Set", 699, 45, ["paper", "notes", "writing", "office"], { color: "Green" }),
-  product(10, "Valkey Backpack", 3999, 16, ["bag", "carry", "travel", "laptop"], { color: "Navy" }),
+  product(1, "Valkey Wireless Keyboard", 2499, 25, CATEGORY_IDS.input, VENDOR_IDS.teamDod, ["typing", "keys", "wireless", "desk"], { color: "Graphite" }),
+  product(2, "Valkey Ergonomic Mouse", 1499, 30, CATEGORY_IDS.input, VENDOR_IDS.teamDod, ["cursor", "ergonomic", "wireless", "desk"], { color: "Green" }),
+  product(3, "Valkey USB-C Hub", 3299, 18, CATEGORY_IDS.connectivity, VENDOR_IDS.teamDod, ["adapter", "ports", "dock", "usb"], { ports: 7 }),
+  product(4, "Valkey Studio Headphones", 5499, 12, CATEGORY_IDS.audio, VENDOR_IDS.valkeyGear, ["audio", "sound", "music", "studio"], { color: "Black" }),
+  product(5, "Valkey Desk Lamp", 1999, 20, CATEGORY_IDS.desk, VENDOR_IDS.teamDod, ["lighting", "reading", "office", "desk"], { color: "White" }),
+  product(6, "Valkey Smart Bottle", 1199, 35, CATEGORY_IDS.travel, VENDOR_IDS.valkeyGear, ["hydration", "water", "smart", "travel"], { color: "Blue" }),
+  product(7, "Valkey Laptop Stand", 2799, 22, CATEGORY_IDS.desk, VENDOR_IDS.teamDod, ["laptop", "stand", "ergonomic", "portable"], { color: "Silver" }),
+  product(8, "Valkey Travel Charger", 1899, 28, CATEGORY_IDS.travel, VENDOR_IDS.valkeyGear, ["power", "charger", "travel", "adapter"], { watts: 65 }),
+  product(9, "Valkey Notebook Set", 699, 45, CATEGORY_IDS.desk, VENDOR_IDS.teamDod, ["paper", "notes", "writing", "office"], { color: "Green" }),
+  product(10, "Valkey Backpack", 3999, 16, CATEGORY_IDS.travel, VENDOR_IDS.valkeyGear, ["bag", "carry", "travel", "laptop"], { color: "Navy" }),
+];
+
+export const CATEGORY_FIXTURES: Category[] = [
+  {
+    id: CATEGORY_IDS.workspace,
+    name: "Workspace",
+    slug: "workspace",
+    icon: "desktop",
+    parentId: null,
+    children: [CATEGORY_IDS.input, CATEGORY_IDS.connectivity, CATEGORY_IDS.audio, CATEGORY_IDS.desk],
+  },
+  {
+    id: CATEGORY_IDS.input,
+    name: "Keyboards & Mice",
+    slug: "keyboards-mice",
+    icon: "keyboard",
+    parentId: CATEGORY_IDS.workspace,
+    children: [],
+  },
+  {
+    id: CATEGORY_IDS.connectivity,
+    name: "Connectivity",
+    slug: "connectivity",
+    icon: "plugs",
+    parentId: CATEGORY_IDS.workspace,
+    children: [],
+  },
+  {
+    id: CATEGORY_IDS.audio,
+    name: "Audio",
+    slug: "audio",
+    icon: "headphones",
+    parentId: CATEGORY_IDS.workspace,
+    children: [],
+  },
+  {
+    id: CATEGORY_IDS.desk,
+    name: "Desk Setup",
+    slug: "desk-setup",
+    icon: "lamp",
+    parentId: CATEGORY_IDS.workspace,
+    children: [],
+  },
+  {
+    id: CATEGORY_IDS.travel,
+    name: "Travel",
+    slug: "travel",
+    icon: "backpack",
+    parentId: null,
+    children: [],
+  },
+];
+
+export const VENDOR_FIXTURES: Vendor[] = [
+  {
+    id: VENDOR_IDS.teamDod,
+    name: "Team DoD Workspace",
+    slug: "team-dod-workspace",
+    email: "workspace@team-dod.example",
+    phone: "+91-4012345678",
+    logo: "/assets/images/logo/logo.png",
+    rating: 4.8,
+    totalProducts: 6,
+    totalSales: 15420,
+    address: {
+      street: "Plot 15, HITEC City",
+      city: "Hyderabad",
+      state: "Telangana",
+      postalCode: "500081",
+      country: "IN",
+      lat: 17.4435,
+      lng: 78.3772,
+    },
+    verified: true,
+    joinedAt: "2024-06-15T00:00:00.000Z",
+  },
+  {
+    id: VENDOR_IDS.valkeyGear,
+    name: "Valkey Gear Co",
+    slug: "valkey-gear-co",
+    email: "gear@valkey-demo.example",
+    phone: "+91-4024681357",
+    logo: "/assets/images/logo/logo.png",
+    rating: 4.7,
+    totalProducts: 4,
+    totalSales: 9840,
+    address: {
+      street: "Innovation Road",
+      city: "Bengaluru",
+      state: "Karnataka",
+      postalCode: "560001",
+      country: "IN",
+      lat: 12.9716,
+      lng: 77.5946,
+    },
+    verified: true,
+    joinedAt: "2024-09-01T00:00:00.000Z",
+  },
+];
+
+export const COUPON_FIXTURES: Coupon[] = [
+  {
+    code: "VALKEY10",
+    type: "percentage",
+    value: 10,
+    minOrderAmount: 1000,
+    maxDiscount: 1000,
+    validFrom: "2026-01-01T00:00:00.000Z",
+    validUntil: "2026-12-31T23:59:59.000Z",
+    usageLimit: 1000,
+    usedCount: 0,
+    applicableCategories: [CATEGORY_IDS.workspace, CATEGORY_IDS.input, CATEGORY_IDS.connectivity, CATEGORY_IDS.audio, CATEGORY_IDS.desk],
+    active: true,
+  },
+  {
+    code: "TRAVEL500",
+    type: "fixed",
+    value: 500,
+    minOrderAmount: 2000,
+    validFrom: "2026-01-01T00:00:00.000Z",
+    validUntil: "2026-12-31T23:59:59.000Z",
+    usageLimit: 500,
+    usedCount: 0,
+    applicableCategories: [CATEGORY_IDS.travel],
+    active: true,
+  },
 ];

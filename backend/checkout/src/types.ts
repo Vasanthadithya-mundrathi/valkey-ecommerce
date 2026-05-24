@@ -13,6 +13,76 @@ export interface CartItemInput {
   quantity: number;
 }
 
+export interface Address {
+  id: string;
+  label: string;
+  street: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  lat?: number;
+  lng?: number;
+  isDefault: boolean;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  passwordHash: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  avatar?: string;
+  role: "customer" | "vendor" | "admin";
+  addresses: Address[];
+  preferences: {
+    currency: string;
+    language: string;
+    notifications: boolean;
+  };
+  createdAt: string;
+  lastLoginAt: string | null;
+}
+
+export type PublicUser = Omit<User, "passwordHash">;
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string;
+  parentId: string | null;
+  children: string[];
+}
+
+export interface CategoryNode extends Category {
+  childNodes: CategoryNode[];
+}
+
+export interface Vendor {
+  id: string;
+  name: string;
+  slug: string;
+  email: string;
+  phone: string;
+  logo: string;
+  rating: number;
+  totalProducts: number;
+  totalSales: number;
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+    lat?: number;
+    lng?: number;
+  };
+  verified: boolean;
+  joinedAt: string;
+}
+
 export interface Product {
   id: string;
   sku: string;
@@ -33,7 +103,7 @@ export interface Product {
     alt: string;
     isPrimary: boolean;
   }>;
-  attributes: Record<string, string>;
+  attributes: Record<string, string | number | boolean>;
   tags: string[];
   inventory: {
     quantity: number;
@@ -71,6 +141,7 @@ export interface Order {
   items: OrderItem[];
   subtotal: number;
   discount: number;
+  couponCode?: string;
   tax: number;
   shipping: number;
   total: number;
@@ -82,6 +153,43 @@ export interface Order {
   };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Coupon {
+  code: string;
+  type: "percentage" | "fixed";
+  value: number;
+  minOrderAmount: number;
+  maxDiscount?: number;
+  validFrom: string;
+  validUntil: string;
+  usageLimit: number;
+  usedCount: number;
+  applicableCategories: string[];
+  active: boolean;
+}
+
+export interface CartLine {
+  productId: string;
+  quantity: number;
+  product: Product;
+  lineTotal: number;
+}
+
+export interface CartTotals {
+  subtotal: number;
+  discount: number;
+  total: number;
+  count: number;
+}
+
+export interface CartSummary {
+  principalId: string;
+  isGuest: boolean;
+  items: CartLine[];
+  coupon: Coupon | null;
+  couponError?: string;
+  totals: CartTotals;
 }
 
 export interface ApiEnvelope {

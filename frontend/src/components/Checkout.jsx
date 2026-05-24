@@ -7,7 +7,7 @@ import { authorizePayment, confirmCheckout, getOrders, startCheckout } from "../
 const currency = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 
 const Checkout = () => {
-  const { items, totals, clearCart } = useCart();
+  const { items, totals, coupon, clearCart } = useCart();
   const [shippingAddress, setShippingAddress] = useState({
     firstName: "Team",
     lastName: "DoD",
@@ -70,7 +70,7 @@ const Checkout = () => {
       setOrder(confirmed.order);
       setTraceId(confirmed.traceId || paid.traceId || started.traceId || "");
       setMessage("Order confirmed and inventory committed.");
-      clearCart();
+      await clearCart();
       const orderList = await getOrders();
       setOrders(orderList.orders || []);
     } catch (error) {
@@ -175,9 +175,19 @@ const Checkout = () => {
                           <span className="text-gray-900 font-heading-two text-xl fw-semibold">Subtotal</span>
                           <span className="text-gray-900 font-heading-two text-md fw-bold">{currency.format(totals.subtotal)}</span>
                         </div>
-                        <div className="mb-0 flex-between gap-8">
-                          <span className="text-gray-900 font-heading-two text-xl fw-semibold">Total</span>
-                          <span className="text-gray-900 font-heading-two text-md fw-bold">{currency.format(totals.total)}</span>
+                          <div className="mb-20 flex-between gap-8">
+                            <span className="text-gray-900 font-heading-two text-xl fw-semibold">Discount</span>
+                            <span className="text-gray-900 font-heading-two text-md fw-bold">{currency.format(totals.discount || 0)}</span>
+                          </div>
+                          {coupon && (
+                            <div className="mb-20 flex-between gap-8">
+                              <span className="text-gray-900 font-heading-two text-md fw-semibold">Coupon</span>
+                              <span className="text-main-600 font-heading-two text-md fw-bold">{coupon.code}</span>
+                            </div>
+                          )}
+                          <div className="mb-0 flex-between gap-8">
+                            <span className="text-gray-900 font-heading-two text-xl fw-semibold">Total</span>
+                            <span className="text-gray-900 font-heading-two text-md fw-bold">{currency.format(totals.total)}</span>
                         </div>
                       </div>
                     </>

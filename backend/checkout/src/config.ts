@@ -7,6 +7,8 @@ export interface CheckoutConfig {
   embeddingServiceUrl: string;
   opensearchUrl: string;
   opensearchIndex: string;
+  sessionTtlSeconds: number;
+  bcryptRounds: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): CheckoutConfig {
@@ -19,5 +21,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CheckoutConfig
     embeddingServiceUrl: env.EMBEDDING_SERVICE_URL ?? "http://localhost:8001",
     opensearchUrl: env.OPENSEARCH_URL ?? "http://localhost:9200",
     opensearchIndex: env.OPENSEARCH_INDEX ?? "valkey-ecommerce-logs",
+    sessionTtlSeconds: Number(env.AUTH_SESSION_TTL_SECONDS ?? 86400),
+    bcryptRounds: Number(env.AUTH_BCRYPT_ROUNDS ?? 12),
   };
 }

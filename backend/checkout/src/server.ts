@@ -1,5 +1,35 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { Redis } from "ioredis";
+import {
+  authenticateRequest,
+  loginUser,
+  logoutSession,
+  refreshSession,
+  registerUser,
+  sessionTokenFromRequest,
+} from "./auth";
+import {
+  addCartItem,
+  applyCoupon,
+  clearCart,
+  getCartSummary,
+  mergeGuestCartIntoUser,
+  removeCartItem,
+  removeCoupon,
+  resolveCartPrincipal,
+  updateCartItem,
+} from "./cart";
+import {
+  createCatalogProduct,
+  getCategory,
+  getVendor,
+  listCatalogProducts,
+  listCategoryTree,
+  listVendors,
+  patchCatalogProduct,
+  productsForCategory,
+  productsForVendor,
+} from "./catalog";
 import type { CheckoutConfig } from "./config";
 import type { EmbedText } from "./embeddings";
 import { ApiError, errorBody, toApiError } from "./errors";
@@ -32,13 +62,12 @@ import {
   createOrder,
   getOrder,
   getProduct,
-  listProducts,
   listOrdersForUser,
   requireOwnedOrder,
   transitionOrder,
 } from "./store";
 import { parseNumericFilter, semanticSearchProducts, similarProducts } from "./search";
-import type { ApiEnvelope, CartItemInput, Order } from "./types";
+import type { ApiEnvelope, CartItemInput, Order, Product, PublicUser } from "./types";
 
 export interface CheckoutAppContext {
   client: Redis;
@@ -51,14 +80,7 @@ export interface CheckoutAppContext {
 
 interface AuthedRequest extends TraceRequest {
   userId?: string;
-}
-
-function userIdFrom(request: Request): string {
-  const userId = request.header("X-User-Id");
-  if (!userId) {
-    throw new ApiError(401, "unauthorized", "X-User-Id header is required.");
-  }
-  return userId;
+  authUser?: PublicUser;
 }
 
 function idempotencyKeyFrom(request: Request): string {
@@ -67,6 +89,30 @@ function idempotencyKeyFrom(request: Request): string {
     throw new ApiError(400, "missing_idempotency_key", "Idempotency-Key header is required.");
   }
   return key;
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function parseCatalogFilters(request: Request) {
+  const attributes: Record<string, string> = {};
+  for (const [key, value] of Object.entries(request.query)) {
+    if (key.startsWith("attribute.") && typeof value === "string" && value.trim()) {
+      attributes[key.slice("attribute.".length)] = value.trim();
+    }
+  }
+
+  return {
+    categoryId: optionalString(request.query.categoryId),
+    vendorId: optionalString(request.query.vendorId),
+    brand: optionalString(request.query.brand),
+    minPrice: parseNumericFilter(request.query.minPrice),
+    maxPrice: parseNumericFilter(request.query.maxPrice),
+    offset: parseNumericFilter(request.query.offset),
+    limit: parseNumericFilter(request.query.limit),
+    attributes,
+  };
 }
 
 function validateCartItems(value: unknown): CartItemInput[] {
@@ -89,6 +135,15 @@ function validateCartItems(value: unknown): CartItemInput[] {
       quantity: Number(candidate.quantity),
     };
   });
+}
+
+function cartMatchesCheckoutItems(cartItems: CartItemInput[], checkoutItems: CartItemInput[]): boolean {
+  if (cartItems.length !== checkoutItems.length) {
+    return false;
+  }
+
+  const cartByProduct = new Map(cartItems.map((item) => [item.productId, item.quantity]));
+  return checkoutItems.every((item) => cartByProduct.get(item.productId) === item.quantity);
 }
 
 function sendEnvelope(response: Response, envelope: ApiEnvelope): void {
@@ -115,10 +170,75 @@ export function createCheckoutApp(context: CheckoutAppContext) {
   app.use(express.json());
   app.use(metricsMiddleware(context.client));
 
-  app.get("/api/products", async (_request, response, next) => {
+  app.post("/api/auth/register", async (request, response, next) => {
     try {
-      const products = await listProducts(context.client);
-      response.json({ products });
+      const body = request.body as Record<string, unknown>;
+      const result = await registerUser(context.client, context.config, {
+        email: String(body.email ?? ""),
+        password: String(body.password ?? ""),
+        firstName: String(body.firstName ?? ""),
+        lastName: String(body.lastName ?? ""),
+        phone: optionalString(body.phone),
+      });
+      await mergeGuestCartIntoUser(context.client, optionalString(body.guestSessionId), result.user.id);
+      response.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/auth/login", async (request, response, next) => {
+    try {
+      const body = request.body as Record<string, unknown>;
+      const result = await loginUser(context.client, context.config, {
+        email: String(body.email ?? ""),
+        password: String(body.password ?? ""),
+      });
+      await mergeGuestCartIntoUser(context.client, optionalString(body.guestSessionId), result.user.id);
+      response.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/auth/logout", async (request, response, next) => {
+    try {
+      const token = sessionTokenFromRequest(request);
+      if (!token) {
+        throw new ApiError(401, "unauthorized", "A valid session token is required.");
+      }
+      await logoutSession(context.client, token);
+      response.status(204).end();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/auth/me", async (request, response, next) => {
+    try {
+      const session = await authenticateRequest(context.client, context.config, request);
+      response.json({ user: session.user });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/auth/refresh", async (request, response, next) => {
+    try {
+      const token = sessionTokenFromRequest(request);
+      if (!token) {
+        throw new ApiError(401, "unauthorized", "A valid session token is required.");
+      }
+      response.json({ expiresIn: await refreshSession(context.client, context.config, token) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/products", async (request, response, next) => {
+    try {
+      const page = await listCatalogProducts(context.client, parseCatalogFilters(request));
+      response.json(page);
     } catch (error) {
       next(error);
     }
@@ -131,6 +251,122 @@ export function createCheckoutApp(context: CheckoutAppContext) {
         throw new ApiError(404, "product_not_found", "Product was not found.");
       }
       response.json({ product });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/categories", async (_request, response, next) => {
+    try {
+      response.json({ categories: await listCategoryTree(context.client) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/categories/:id/products", async (request, response, next) => {
+    try {
+      const category = await getCategory(context.client, request.params.id);
+      if (!category) {
+        throw new ApiError(404, "category_not_found", "Category was not found.");
+      }
+      const page = await productsForCategory(context.client, request.params.id, parseCatalogFilters(request));
+      response.json({ category, ...page });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/vendors", async (_request, response, next) => {
+    try {
+      response.json({ vendors: await listVendors(context.client) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/vendors/:id/products", async (request, response, next) => {
+    try {
+      const vendor = await getVendor(context.client, request.params.id);
+      if (!vendor) {
+        throw new ApiError(404, "vendor_not_found", "Vendor was not found.");
+      }
+      const page = await productsForVendor(context.client, request.params.id, parseCatalogFilters(request));
+      response.json({ vendor, ...page });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/cart", async (request, response, next) => {
+    try {
+      const principal = await resolveCartPrincipal(context.client, context.config, request);
+      response.json({ cart: await getCartSummary(context.client, principal) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cart/items", async (request, response, next) => {
+    try {
+      const body = request.body as Record<string, unknown>;
+      const productId = optionalString(body.productId);
+      const quantity = Number(body.quantity ?? 1);
+      if (!productId) {
+        throw new ApiError(400, "invalid_request", "productId is required.");
+      }
+      const principal = await resolveCartPrincipal(context.client, context.config, request);
+      response.status(201).json({ cart: await addCartItem(context.client, principal, productId, quantity) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/cart/items/:productId", async (request, response, next) => {
+    try {
+      const quantity = Number((request.body as Record<string, unknown>).quantity);
+      const principal = await resolveCartPrincipal(context.client, context.config, request);
+      response.json({ cart: await updateCartItem(context.client, principal, request.params.productId, quantity) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/cart/items/:productId", async (request, response, next) => {
+    try {
+      const principal = await resolveCartPrincipal(context.client, context.config, request);
+      response.json({ cart: await removeCartItem(context.client, principal, request.params.productId) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/cart", async (request, response, next) => {
+    try {
+      const principal = await resolveCartPrincipal(context.client, context.config, request);
+      response.json({ cart: await clearCart(context.client, principal) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/cart/coupon", async (request, response, next) => {
+    try {
+      const code = optionalString((request.body as Record<string, unknown>).code);
+      if (!code) {
+        throw new ApiError(400, "invalid_request", "Coupon code is required.");
+      }
+      const principal = await resolveCartPrincipal(context.client, context.config, request);
+      response.json({ cart: await applyCoupon(context.client, principal, code) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.delete("/api/cart/coupon", async (request, response, next) => {
+    try {
+      const principal = await resolveCartPrincipal(context.client, context.config, request);
+      response.json({ cart: await removeCoupon(context.client, principal) });
     } catch (error) {
       next(error);
     }
@@ -229,10 +465,33 @@ export function createCheckoutApp(context: CheckoutAppContext) {
     }
   });
 
-  app.use((request: AuthedRequest, _response, next) => {
+  app.use(async (request: AuthedRequest, _response, next) => {
     try {
-      request.userId = userIdFrom(request);
+      const session = await authenticateRequest(context.client, context.config, request, { allowUserIdHeader: true });
+      request.userId = session.userId;
+      request.authUser = session.user;
       next();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/products", async (request: AuthedRequest, response, next) => {
+    try {
+      const product = await createCatalogProduct(context.client, request.body as Partial<Product>);
+      response.status(201).json({ product });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.patch("/api/products/:id", async (request: AuthedRequest, response, next) => {
+    try {
+      const product = await patchCatalogProduct(context.client, request.params.id, request.body as Record<string, unknown>);
+      if (!product) {
+        throw new ApiError(404, "product_not_found", "Product was not found.");
+      }
+      response.json({ product });
     } catch (error) {
       next(error);
     }
@@ -250,8 +509,18 @@ export function createCheckoutApp(context: CheckoutAppContext) {
           body.shippingAddress && typeof body.shippingAddress === "object"
             ? (body.shippingAddress as Record<string, unknown>)
             : {};
+        const cart = await getCartSummary(context.client, { id: userId, isGuest: false });
+        const cartItems = cart.items.map((item) => ({ productId: item.productId, quantity: item.quantity }));
+        const cartDiscount = cartMatchesCheckoutItems(cartItems, items) ? cart.totals.discount : 0;
 
-        const order = await createOrder(context.client, userId, items, shippingAddress);
+        const order = await createOrder(
+          context.client,
+          userId,
+          items,
+          shippingAddress,
+          cartDiscount,
+          cartDiscount > 0 ? cart.coupon?.code : undefined
+        );
         const job = await context.queues.inventoryReserve.add(
           `reserve:${order.id}`,
           { orderId: order.id },
@@ -521,8 +790,11 @@ function corsMiddleware(corsOrigin: string) {
 
     response.setHeader("Access-Control-Allow-Origin", allowOrigin);
     response.setHeader("Vary", "Origin");
-    response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    response.setHeader("Access-Control-Allow-Headers", "Content-Type,X-User-Id,Idempotency-Key,X-Trace-Id");
+    response.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
+    response.setHeader(
+      "Access-Control-Allow-Headers",
+      "Authorization,Content-Type,X-User-Id,X-Session-Token,X-Guest-Session-Id,Idempotency-Key,X-Trace-Id"
+    );
     response.setHeader("Access-Control-Expose-Headers", "X-Trace-Id");
 
     if (request.method === "OPTIONS") {

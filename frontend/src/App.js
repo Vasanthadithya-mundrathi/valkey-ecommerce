@@ -11,6 +11,7 @@ import CheckoutPage from "./pages/CheckoutPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import ObservabilityPage from "./pages/ObservabilityPage";
 import SemanticSearchPage from "./pages/SemanticSearchPage";
+import CatalogPage from "./pages/CatalogPage";
 import AccountPage from "./pages/AccountPage";
 import BlogPage from "./pages/BlogPage";
 import BlogDetailsPage from "./pages/BlogDetailsPage";
@@ -35,6 +36,7 @@ function App() {
           <Route exact path='/index-two' element={<HomePageTwo />} />
           <Route exact path='/index-three' element={<HomePageThree />} />
           <Route exact path='/shop' element={<ShopPage />} />
+          <Route exact path='/catalog' element={<CatalogPage />} />
           <Route exact path='/semantic-search' element={<SemanticSearchPage />} />
           <Route exact path='/analytics' element={<AnalyticsPage />} />
           <Route exact path='/observability' element={<ObservabilityPage />} />

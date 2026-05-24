@@ -11,7 +11,9 @@ import { startOpenSearchForwarder, type OpenSearchForwarder } from "./observabil
 import { createQueueRuntime, type QueueRuntime } from "./queues";
 import { createCheckoutApp } from "./server";
 import { ensureProductVectorIndex, upsertProductEmbeddings } from "./search";
-import { ensureSeedProducts } from "./store";
+import { seedCoupons } from "./cart";
+import { ensureSeedCatalog } from "./catalog";
+import { listProducts } from "./store";
 
 export interface CheckoutRuntime {
   app: ReturnType<typeof createCheckoutApp>;
@@ -31,7 +33,9 @@ export async function createCheckoutRuntime(env: NodeJS.ProcessEnv = process.env
   await scripts.load();
 
   const embeddingClient = createEmbeddingClient(config.embeddingServiceUrl);
-  const products = await ensureSeedProducts(client);
+  await ensureSeedCatalog(client);
+  await seedCoupons(client);
+  const products = await listProducts(client);
   await upsertProductEmbeddings(client, products, embeddingClient.embedText);
   await ensureProductVectorIndex(client);
 

@@ -1,5 +1,7 @@
 const API_BASE_URL = (process.env.REACT_APP_CHECKOUT_API_BASE_URL || "http://localhost:4000").replace(/\/$/, "");
 const USER_ID_KEY = "valkey-demo-user-id";
+const SESSION_TOKEN_KEY = "valkey-demo-session-token";
+const GUEST_SESSION_KEY = "valkey-demo-guest-session-id";
 
 export function getDemoUserId() {
   const existing = window.localStorage.getItem(USER_ID_KEY);
@@ -16,12 +18,88 @@ export function apiBaseUrl() {
   return API_BASE_URL;
 }
 
-export async function getProducts() {
-  return request("/api/products");
+export function getSessionToken() {
+  return window.localStorage.getItem(SESSION_TOKEN_KEY);
+}
+
+export function getGuestSessionId() {
+  const existing = window.localStorage.getItem(GUEST_SESSION_KEY);
+  if (existing) {
+    return existing;
+  }
+
+  const guestSessionId = `guest:${cryptoRandomId()}`;
+  window.localStorage.setItem(GUEST_SESSION_KEY, guestSessionId);
+  return guestSessionId;
+}
+
+export async function registerAccount(input) {
+  const data = await request("/api/auth/register", {
+    method: "POST",
+    body: { ...input, guestSessionId: getGuestSessionId() },
+  });
+  storeSession(data.token);
+  return data;
+}
+
+export async function loginAccount(input) {
+  const data = await request("/api/auth/login", {
+    method: "POST",
+    body: { ...input, guestSessionId: getGuestSessionId() },
+  });
+  storeSession(data.token);
+  return data;
+}
+
+export async function logoutAccount() {
+  try {
+    await request("/api/auth/logout", { method: "POST", sessionAuth: true });
+  } finally {
+    clearSession();
+  }
+}
+
+export async function getCurrentAccount() {
+  return request("/api/auth/me", { sessionAuth: true });
+}
+
+export async function refreshAccountSession() {
+  return request("/api/auth/refresh", { method: "POST", sessionAuth: true });
+}
+
+export function clearSession() {
+  window.localStorage.removeItem(SESSION_TOKEN_KEY);
+}
+
+export async function getProducts(filters = {}) {
+  const params = toSearchParams(filters);
+  return request(`/api/products${params ? `?${params}` : ""}`);
+}
+
+export async function getCatalogProducts(filters = {}) {
+  return getProducts(filters);
 }
 
 export async function getProduct(productId) {
   return request(`/api/products/${encodeURIComponent(productId)}`);
+}
+
+export async function getCategories() {
+  return request("/api/categories");
+}
+
+export async function getVendors() {
+  return request("/api/vendors");
+}
+
+export async function getVendorProducts(vendorId, filters = {}) {
+  const params = toSearchParams(filters);
+  return request(`/api/vendors/${encodeURIComponent(vendorId)}/products${params ? `?${params}` : ""}`);
+}
+
+export async function getCategoryProducts(categoryId, filters = {}) {
+  const params = toSearchParams(filters);
+  return request(`/api/categories/${encodeURIComponent(categoryId)}/products${params ? `?${params}` : ""}`);
 }
 
 export async function semanticSearch({ query, categoryId, minPrice, maxPrice, limit = 8 }) {
@@ -75,6 +153,55 @@ export async function getOrders() {
   return request("/api/orders", { auth: true });
 }
 
+export async function getCart() {
+  return request("/api/cart", { cart: true });
+}
+
+export async function addCartItem(productId, quantity = 1) {
+  return request("/api/cart/items", {
+    method: "POST",
+    cart: true,
+    body: { productId, quantity },
+  });
+}
+
+export async function updateCartItem(productId, quantity) {
+  return request(`/api/cart/items/${encodeURIComponent(productId)}`, {
+    method: "PATCH",
+    cart: true,
+    body: { quantity },
+  });
+}
+
+export async function removeCartItem(productId) {
+  return request(`/api/cart/items/${encodeURIComponent(productId)}`, {
+    method: "DELETE",
+    cart: true,
+  });
+}
+
+export async function clearCartApi() {
+  return request("/api/cart", {
+    method: "DELETE",
+    cart: true,
+  });
+}
+
+export async function applyCartCoupon(code) {
+  return request("/api/cart/coupon", {
+    method: "POST",
+    cart: true,
+    body: { code },
+  });
+}
+
+export async function removeCartCoupon() {
+  return request("/api/cart/coupon", {
+    method: "DELETE",
+    cart: true,
+  });
+}
+
 export async function getAnalyticsDashboard() {
   return request("/api/analytics/dashboard");
 }
@@ -110,8 +237,15 @@ async function request(path, options = {}) {
   if (options.body) {
     headers.set("Content-Type", "application/json");
   }
-  if (options.auth) {
-    headers.set("X-User-Id", getDemoUserId());
+  if (options.auth || options.sessionAuth || options.cart) {
+    const token = getSessionToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    } else if (options.cart) {
+      headers.set("X-Guest-Session-Id", getGuestSessionId());
+    } else if (options.auth) {
+      headers.set("X-User-Id", getDemoUserId());
+    }
   }
   if (options.idempotencyKey) {
     headers.set("Idempotency-Key", options.idempotencyKey);
@@ -140,4 +274,38 @@ async function request(path, options = {}) {
 
 function uniqueKey(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function storeSession(token) {
+  if (token) {
+    window.localStorage.setItem(SESSION_TOKEN_KEY, token);
+  }
+}
+
+function toSearchParams(filters) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") {
+      return;
+    }
+
+    if (key === "attributes" && typeof value === "object") {
+      Object.entries(value).forEach(([attributeKey, attributeValue]) => {
+        if (attributeValue !== undefined && attributeValue !== null && attributeValue !== "") {
+          params.set(`attribute.${attributeKey}`, String(attributeValue));
+        }
+      });
+      return;
+    }
+
+    params.set(key, String(value));
+  });
+  return params.toString();
+}
+
+function cryptoRandomId() {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

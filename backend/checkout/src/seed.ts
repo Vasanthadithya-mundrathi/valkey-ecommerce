@@ -2,7 +2,9 @@ import { createValkeyClient } from "./connection";
 import { loadConfig } from "./config";
 import { createEmbeddingClient } from "./embeddings";
 import { ensureProductVectorIndex, upsertProductEmbeddings } from "./search";
-import { seedProducts } from "./store";
+import { seedCoupons } from "./cart";
+import { seedCatalog } from "./catalog";
+import { listProducts } from "./store";
 
 async function main() {
   const client = createValkeyClient();
@@ -10,7 +12,9 @@ async function main() {
     const config = loadConfig();
     const embeddingClient = createEmbeddingClient(config.embeddingServiceUrl);
     await client.call("FT.DROPINDEX", "idx:product_vectors").catch(() => undefined);
-    const products = await seedProducts(client);
+    await seedCatalog(client);
+    await seedCoupons(client);
+    const products = await listProducts(client);
     await upsertProductEmbeddings(client, products, embeddingClient.embedText);
     const vectorIndexReady = await ensureProductVectorIndex(client);
     console.log(JSON.stringify({ seededProducts: products.length, firstProductId: products[0]?.id, vectorIndexReady }));

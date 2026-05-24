@@ -101,7 +101,9 @@ export async function createOrder(
   client: Redis,
   userId: string,
   items: CartItemInput[],
-  shippingAddress: Record<string, unknown>
+  shippingAddress: Record<string, unknown>,
+  discount = 0,
+  couponCode?: string
 ): Promise<Order> {
   const orderItems: OrderItem[] = [];
 
@@ -125,6 +127,7 @@ export async function createOrder(
   }
 
   const subtotal = orderItems.reduce((total, item) => total + item.price * item.quantity, 0);
+  const safeDiscount = Math.min(Math.max(0, discount), subtotal);
   const now = new Date().toISOString();
   const order: Order = {
     id: createId("order"),
@@ -132,10 +135,11 @@ export async function createOrder(
     status: "pending_reservation",
     items: orderItems,
     subtotal,
-    discount: 0,
+    discount: safeDiscount,
+    couponCode,
     tax: 0,
     shipping: 0,
-    total: subtotal,
+    total: subtotal - safeDiscount,
     shippingAddress,
     payment: {
       method: "stub",
