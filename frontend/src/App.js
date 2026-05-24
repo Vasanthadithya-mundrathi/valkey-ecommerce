@@ -19,6 +19,9 @@ import VendorTwoPage from "./pages/VendorTwoPage";
 import VendorTwoDetailsPage from "./pages/VendorTwoDetailsPage";
 import BecomeSellerPage from "./pages/BecomeSellerPage";
 import WishlistPage from "./pages/WishlistPage";
+import DeliveryTrackingPage from "./pages/DeliveryTrackingPage";
+import RecommendationsPage from "./pages/RecommendationsPage";
+import AgentSearchPage from "./pages/AgentSearchPage";
 function App() {
   return (
     <BrowserRouter>
@@ -45,6 +48,10 @@ function App() {
         <Route exact path='/become-seller' element={<BecomeSellerPage />} />
         <Route exact path='/wishlist' element={<WishlistPage />} />
         <Route exact path='/account' element={<AccountPage />} />
+        <Route exact path='/track' element={<DeliveryTrackingPage />} />
+        <Route exact path='/track/:trackingId' element={<DeliveryTrackingPage />} />
+        <Route exact path='/recommendations' element={<RecommendationsPage />} />
+        <Route exact path='/ai-search' element={<AgentSearchPage />} />
         <Route exact path='/blog' element={<BlogPage />} />
         <Route exact path='/blog-details' element={<BlogDetailsPage />} />
         <Route exact path='/contact' element={<ContactPage />} />

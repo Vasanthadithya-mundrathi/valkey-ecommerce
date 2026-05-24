@@ -1,0 +1,28 @@
+{
+  "name": "valkey-ecommerce-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared backend for the Valkey E-Commerce Demo. One Express app + one Valkey connection. Each challenge adds a router under src/routes and mounts it in src/index.js.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "seed": "node src/seed/seed.js",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "iovalkey": "^0.3.1",
+    "uuid": "^11.0.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.7",
+    "supertest": "^7.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  }
+}
